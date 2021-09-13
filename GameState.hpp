@@ -89,7 +89,7 @@ namespace DZChess {
             }
         }
 
-        constexpr bool is_capture(const ChessMove &move) const {
+        constexpr bool is_capture(const ChessMove &move) const noexcept {
             return has_enemy_piece(move.destination());
         }
 
@@ -133,10 +133,10 @@ namespace DZChess {
             }
         }
 
-        constexpr void available_moves(
+        void available_moves(
             std::vector<ChessMove> &moves,
             const ChessSquare &source
-        ) const {
+        ) const noexcept {
             const ChessPiece piece = _board[source];
             if (piece.color() == _color_to_move) {
                 switch (piece.type()) {
@@ -198,7 +198,7 @@ namespace DZChess {
 
     public:
 
-        constexpr std::vector<ChessMove> available_moves() const noexcept {
+        std::vector<ChessMove> available_moves() const {
             std::vector<ChessMove> result;
             for (coord_t rank = 0; rank < BOARD_HEIGHT; ++rank) {
                 for (coord_t file = 0; file < BOARD_WIDTH; ++file) {
@@ -215,42 +215,45 @@ namespace DZChess {
             const auto moves = available_moves();
             for (const ChessMove &move : moves) {
                 std::ostringstream name;
-                if (is_capture(move)) {
-                    switch (_board[move.source()].type()) {
-                        case PieceType::NONE: {
-                            throw std::invalid_argument(
-                                "attempted to move from empty square"
-                            );
+                switch (_board[move.source()].type()) {
+                    case PieceType::NONE: {
+                        throw std::invalid_argument(
+                            "attempted to move from empty square"
+                        );
+                    }
+                    case PieceType::KING  : { name << 'K'; break; }
+                    case PieceType::QUEEN : { name << 'Q'; break; }
+                    case PieceType::ROOK  : { name << 'R'; break; }
+                    case PieceType::BISHOP: { name << 'B'; break; }
+                    case PieceType::KNIGHT: { name << 'N'; break; }
+                    case PieceType::PAWN: {
+                        if (is_capture(move)) {
+                            name << static_cast<char>('a' + move.source().file());
                         }
-                        case PieceType::KING  : { name << 'K'; break; }
+                        break;
+                    }
+                }
+                if (is_capture(move)) { name << 'x'; }
+                name << move.destination();
+                if (move.promotion_type() != PieceType::NONE) {
+                    name << '=';
+                    switch (move.promotion_type()) {
+                        case PieceType::NONE: {
+                            throw std::invalid_argument("cannot promote to none");
+                        }
+                        case PieceType::KING: {
+                            throw std::invalid_argument("cannot promote to king");
+                        }
                         case PieceType::QUEEN : { name << 'Q'; break; }
                         case PieceType::ROOK  : { name << 'R'; break; }
                         case PieceType::BISHOP: { name << 'B'; break; }
                         case PieceType::KNIGHT: { name << 'N'; break; }
                         case PieceType::PAWN: {
-                            name << static_cast<char>('a' + move.source().file());
-                            break;
+                            throw std::invalid_argument("cannot promote to pawn");
                         }
                     }
-                    name << 'x' << move.destination();
-                    result.emplace_back(move, name.str());
-                } else {
-                    switch (_board[move.source()].type()) {
-                        case PieceType::NONE: {
-                            throw std::invalid_argument(
-                                "attempted to move from empty square"
-                            );
-                        }
-                        case PieceType::KING  : { name << 'K'; break; }
-                        case PieceType::QUEEN : { name << 'Q'; break; }
-                        case PieceType::ROOK  : { name << 'R'; break; }
-                        case PieceType::BISHOP: { name << 'B'; break; }
-                        case PieceType::KNIGHT: { name << 'N'; break; }
-                        case PieceType::PAWN  : {              break; }
-                    }
-                    name << move.destination();
-                    result.emplace_back(move, name.str());
                 }
+                result.emplace_back(move, name.str());
             }
             return result;
         }
