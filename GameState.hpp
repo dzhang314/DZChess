@@ -133,7 +133,7 @@ namespace DZChess {
             }
         }
 
-        void available_moves(
+        void available_moves_ignoring_check(
             std::vector<ChessMove> &moves,
             const ChessSquare &source
         ) const noexcept {
@@ -196,18 +196,78 @@ namespace DZChess {
             }
         }
 
-    public:
-
-        std::vector<ChessMove> available_moves() const {
+        std::vector<ChessMove> available_moves_ignoring_check() const {
             std::vector<ChessMove> result;
             for (coord_t rank = 0; rank < BOARD_HEIGHT; ++rank) {
                 for (coord_t file = 0; file < BOARD_WIDTH; ++file) {
                     const ChessSquare source{rank, file};
-                    available_moves(result, source);
+                    available_moves_ignoring_check(result, source);
                 }
             }
             return result;
         }
+
+    public:
+
+        bool in_check() const {
+            const PieceColor opponent = (_color_to_move == PieceColor::BLACK)
+                                        ? PieceColor::WHITE : PieceColor::BLACK;
+            GameState copy = *this;
+            copy._color_to_move = opponent;
+            for (const ChessMove &move : copy.available_moves_ignoring_check()) {
+                const ChessPiece captured = copy._board[move.destination()];
+                if (captured.type() == PieceType::KING &&
+                    captured.color() == _color_to_move) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    private:
+
+        bool puts_self_in_check(const ChessMove &move) const {
+            GameState next = *this;
+            next.make_move(move);
+            next._color_to_move = _color_to_move;
+            return next.in_check();
+        }
+
+        bool puts_enemy_in_check(const ChessMove &move) const {
+            GameState next = *this;
+            next.make_move(move);
+            return next.in_check();
+        }
+
+    public:
+
+        std::vector<ChessMove> available_moves() const {
+            std::vector<ChessMove> result;
+            for (const ChessMove &move : available_moves_ignoring_check()) {
+                if (!puts_self_in_check(move)) {
+                    result.push_back(move);
+                }
+            }
+            return result;
+        }
+
+    private:
+
+        bool puts_enemy_in_checkmate(const ChessMove &move) const {
+            if (!puts_enemy_in_check(move)) { return false; }
+            GameState next = *this;
+            next.make_move(move);
+            return (next.available_moves().size() == 0);
+        }
+
+        bool puts_enemy_in_stalemate(const ChessMove &move) const {
+            if (puts_enemy_in_check(move)) { return false; }
+            GameState next = *this;
+            next.make_move(move);
+            return (next.available_moves().size() == 0);
+        }
+
+    public:
 
         std::vector<std::pair<ChessMove, std::string>>
         available_moves_and_names() const {
@@ -252,6 +312,11 @@ namespace DZChess {
                             throw std::invalid_argument("cannot promote to pawn");
                         }
                     }
+                }
+                if (puts_enemy_in_checkmate(move)) {
+                    name << '#';
+                } else if (puts_enemy_in_check(move)) {
+                    name << '+';
                 }
                 result.emplace_back(move, name.str());
             }
