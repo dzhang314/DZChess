@@ -18,8 +18,8 @@ namespace DZChess {
     private:
 
         ChessBoard _board;
-        ChessMove _last_move;
         PieceColor _color_to_move;
+        coord_t _en_passant_file;
         bool _white_short_castle_available;
         bool _white_long_castle_available;
         bool _black_short_castle_available;
@@ -29,20 +29,24 @@ namespace DZChess {
 
         explicit constexpr GameState() noexcept :
             _board(),                            // starting position
-            _last_move(),                        // null last move
             _color_to_move(PieceColor::WHITE),   // white goes first
+            _en_passant_file(-1),                // en passant not available
             _white_short_castle_available(true), // all castling available
             _white_long_castle_available(true),
             _black_short_castle_available(true),
             _black_long_castle_available(true) {}
 
-        constexpr const ChessBoard &board    () const noexcept { return _board    ; }
-        constexpr const ChessMove  &last_move() const noexcept { return _last_move; }
+        constexpr const ChessBoard &board() const noexcept { return _board; }
+        constexpr coord_t en_passant_file() const noexcept { return _en_passant_file; }
 
     private:
 
         constexpr coord_t pawn_origin_rank() const noexcept {
             return (_color_to_move == PieceColor::WHITE) ? 1 : (BOARD_HEIGHT - 2);
+        }
+
+        constexpr coord_t en_passant_rank() const noexcept {
+            return (_color_to_move == PieceColor::WHITE) ? (BOARD_HEIGHT - 4) : 3;
         }
 
         constexpr bool is_empty(ChessSquare square) const noexcept {
@@ -57,6 +61,15 @@ namespace DZChess {
             if (!square.in_bounds()) { return false; }
             const PieceColor color = _board[square].color();
             return (color != PieceColor::NONE) && (color != _color_to_move);
+        }
+
+        constexpr bool has_enemy_pawn(ChessSquare square) const noexcept {
+            if (!square.in_bounds()) { return false; }
+            const ChessPiece piece = _board[square];
+            const PieceColor color = piece.color();
+            const PieceType type = piece.type();
+            return (color != PieceColor::NONE) && (color != _color_to_move)
+                                               && (type == PieceType::PAWN);
         }
 
         constexpr bool can_move_to(ChessSquare square) const noexcept {
@@ -89,8 +102,17 @@ namespace DZChess {
             }
         }
 
+        constexpr bool is_en_passant_capture(const ChessMove &move) const noexcept {
+            const ChessSquare dst = move.destination();
+            if (!is_empty(dst)) { return false; }
+            const ChessSquare src = move.source();
+            if (src.file() == dst.file()) { return false; }
+            const PieceType type = _board[src].type();
+            return (type == PieceType::PAWN);
+        }
+
         constexpr bool is_capture(const ChessMove &move) const noexcept {
-            return has_enemy_piece(move.destination());
+            return has_enemy_piece(move.destination()) || is_en_passant_capture(move);
         }
 
         constexpr void promotion_moves(
@@ -124,11 +146,17 @@ namespace DZChess {
                 }
             }
             const ChessSquare ldiag = source + ChessDisplacement{up, -1};
-            if (has_enemy_piece(ldiag)) {
+            if (has_enemy_piece(ldiag) ||
+                ((source.rank() == en_passant_rank()) &&
+                 (ldiag.file() == _en_passant_file) &&
+                 is_empty(ldiag))) {
                 promotion_moves(moves, source, ldiag);
             }
             const ChessSquare rdiag = source + ChessDisplacement{up, +1};
-            if (has_enemy_piece(rdiag)) {
+            if (has_enemy_piece(rdiag) ||
+                ((source.rank() == en_passant_rank()) &&
+                 (rdiag.file() == _en_passant_file) &&
+                 is_empty(rdiag))) {
                 promotion_moves(moves, source, rdiag);
             }
         }
@@ -324,14 +352,30 @@ namespace DZChess {
         }
 
         void make_move(const ChessMove &move) {
-            if (!has_own_piece(move.source())) {
+            const ChessSquare src = move.source();
+            const ChessSquare dst = move.destination();
+            const PieceType type = _board[src].type();
+            if (!has_own_piece(src)) {
                 throw std::invalid_argument("attempted to move invalid piece");
             }
-            if (!can_move_to(move.destination())) {
+            if (!can_move_to(dst)) {
                 throw std::invalid_argument("attempted to move to invalid square");
             }
+            if ((type == PieceType::PAWN) &&
+                (src.file() != dst.file()) &&
+                is_empty(dst)) {
+                if (dst.file() != _en_passant_file) {
+                    throw std::invalid_argument("invalid en passant");
+                }
+                _board[ChessSquare{src.rank(), dst.file()}] = EMPTY_SQUARE;
+            }
             _board.make_move(move);
-            _last_move = move;
+            if ((type == PieceType::PAWN) &&
+                (std::abs(src.rank() - dst.rank()) == 2)) {
+                _en_passant_file = dst.file();
+            } else {
+                _en_passant_file = -1;
+            }
             _color_to_move = (_color_to_move == PieceColor::BLACK)
                              ? PieceColor::WHITE : PieceColor::BLACK;
         }

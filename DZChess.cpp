@@ -6,8 +6,15 @@
 int main() {
     DZChess::GameState state;
     while (true) {
+        const auto epf = state.en_passant_file();
+        if (epf == -1) {
+            std::cout << "Capturing en passant is not possible." << std::endl;
+        } else {
+            std::cout << "The pawn on the " << static_cast<char>('a' + epf)
+                      << " file can be captured en passant." << std::endl;
+        }
+        std::cout << std::endl << state.board() << std::endl;
         const auto moves = state.available_moves_and_names();
-        std::cout << state.board() << std::endl;
         if (moves.size() == 0) {
             if (state.in_check()) {
                 std::cout << "You have been checkmated! Game over." << std::endl;
