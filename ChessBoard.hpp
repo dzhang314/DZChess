@@ -32,6 +32,27 @@ namespace DZChess {
     constexpr char MAX_RANK = MIN_RANK + BOARD_HEIGHT - 1;
 
 
+    constexpr bool is_valid_file(char file) noexcept {
+        return (MIN_FILE <= file) && (file <= MAX_FILE);
+    }
+
+    constexpr bool is_valid_rank(char rank) noexcept {
+        return (MIN_RANK <= rank) && (rank <= MAX_RANK);
+    }
+
+    constexpr void assert_valid_file(char file) {
+        if (!is_valid_file(file)) {
+            throw std::invalid_argument("invalid file");
+        }
+    }
+
+    constexpr void assert_valid_rank(char rank) {
+        if (!is_valid_rank(rank)) {
+            throw std::invalid_argument("invalid rank");
+        }
+    }
+
+
     class ChessSquare {
 
     private:
@@ -46,23 +67,6 @@ namespace DZChess {
 
         explicit constexpr ChessSquare(coord_t rank, coord_t file) noexcept :
             _rank(rank), _file(file) {}
-
-        //explicit constexpr ChessSquare(char file, char rank) :
-        //    _rank(static_cast<coord_t>(rank - MIN_RANK)),
-        //    _file(static_cast<coord_t>(file - MIN_FILE)) {
-        //    if (!(MIN_FILE <= file && file <= MAX_FILE)) {
-        //        throw std::invalid_argument(
-        //            "attempted to construct ChessSquare "
-        //            "with file out of range (a - h)"
-        //        );
-        //    }
-        //    if (!(MIN_RANK <= rank && rank <= MAX_RANK)) {
-        //        throw std::invalid_argument(
-        //            "attempted to construct ChessSquare "
-        //            "with rank out of range (1 - 8)"
-        //        );
-        //    }
-        //}
 
         constexpr coord_t rank() const noexcept { return _rank; }
         constexpr coord_t file() const noexcept { return _file; }
@@ -119,9 +123,31 @@ namespace DZChess {
             _source(source), _destination(destination),
             _promotion_type(promotion_type) {}
 
+        explicit constexpr ChessMove(const char *str) {
+            assert_valid_file(str[0]);
+            assert_valid_rank(str[1]);
+            assert_valid_file(str[2]);
+            assert_valid_rank(str[3]);
+            _source = ChessSquare(static_cast<coord_t>(str[1] - MIN_RANK),
+                                  static_cast<coord_t>(str[0] - MIN_FILE));
+            _destination = ChessSquare(static_cast<coord_t>(str[3] - MIN_RANK),
+                                       static_cast<coord_t>(str[2] - MIN_FILE));
+            if      (str[4] == 'q') { _promotion_type = PieceType::QUEEN; }
+            else if (str[4] == 'r') { _promotion_type = PieceType::ROOK; }
+            else if (str[4] == 'b') { _promotion_type = PieceType::BISHOP; }
+            else if (str[4] == 'k') { _promotion_type = PieceType::KNIGHT; }
+            else                    { _promotion_type = PieceType::NONE; }
+        }
+
         constexpr ChessSquare source        () const noexcept { return _source        ; }
         constexpr ChessSquare destination   () const noexcept { return _destination   ; }
         constexpr PieceType   promotion_type() const noexcept { return _promotion_type; }
+
+        constexpr auto operator<=>(const ChessMove &) const noexcept = default;
+
+        constexpr bool affects(ChessSquare square) const noexcept {
+            return (_source == square) || (_destination == square);
+        }
 
         friend std::ostream &operator<<(std::ostream &os, const ChessMove &move) {
             os << move.source();
@@ -191,11 +217,15 @@ namespace DZChess {
             return _data[BOARD_HEIGHT - square.rank() - 1][square.file()];
         }
 
-        void make_move(const ChessMove &move) {
+        constexpr void make_move(const ChessMove &move) {
             const auto src = move.source();
             const auto dst = move.destination();
             (*this)[dst] = (*this)[src].promote(move.promotion_type());
             (*this)[src] = EMPTY_SQUARE;
+        }
+
+        constexpr void make_move(ChessSquare source, ChessSquare destination) {
+            make_move(ChessMove{source, destination});
         }
 
         friend std::ostream &operator<<(std::ostream &os, const ChessBoard &board) {

@@ -4,9 +4,20 @@
 #include <string>
 
 
+namespace DZChess::ECO {
+
+    constexpr GameState INITIAL_STATE;
+    constexpr GameState B00_KINGS_PAWN = INITIAL_STATE.after_move("e2e4");
+    constexpr GameState C20_KINGS_PAWN = B00_KINGS_PAWN.after_move("e7e5");
+    constexpr GameState C40_KINGS_KNIGHT = C20_KINGS_PAWN.after_move("g1f3");
+    constexpr GameState C44_KINGS_PAWN = C40_KINGS_KNIGHT.after_move("b8c6");
+    constexpr GameState C60_RUY_LOPEZ = C44_KINGS_PAWN.after_move("f1b5");
+
+}
+
 int main() {
     std::cout << std::endl;
-    DZChess::GameState state;
+    DZChess::GameState state = DZChess::ECO::C60_RUY_LOPEZ;
     while (true) {
         std::cout << state.board() << std::endl;
         const auto moves = state.available_moves_and_names();
