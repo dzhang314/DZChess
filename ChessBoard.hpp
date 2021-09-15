@@ -199,8 +199,10 @@ namespace DZChess {
         }
 
         friend std::ostream &operator<<(std::ostream &os, const ChessBoard &board) {
+            os << "    +-------------------------+" << std::endl;
             for (const auto &rank : board._data) {
                 bool first = true;
+                os << "    | ";
                 for (const ChessPiece piece : rank) {
                     if (first) {
                         first = false;
@@ -209,8 +211,9 @@ namespace DZChess {
                     }
                     os << piece;
                 }
-                os << std::endl;
+                os << " |" << std::endl;
             }
+            os << "    +-------------------------+" << std::endl;
             return os;
         }
 
