@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 
+
 int main() {
     DZChess::GameState state;
     while (true) {

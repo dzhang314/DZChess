@@ -41,14 +41,6 @@ namespace DZChess {
 
     private:
 
-        constexpr coord_t pawn_origin_rank() const noexcept {
-            return (_color_to_move == PieceColor::WHITE) ? 1 : (BOARD_HEIGHT - 2);
-        }
-
-        constexpr coord_t en_passant_rank() const noexcept {
-            return (_color_to_move == PieceColor::WHITE) ? (BOARD_HEIGHT - 4) : 3;
-        }
-
         constexpr bool is_empty(ChessSquare square) const noexcept {
             return square.in_bounds() && (_board[square].color() == PieceColor::NONE);
         }
@@ -63,17 +55,19 @@ namespace DZChess {
             return (color != PieceColor::NONE) && (color != _color_to_move);
         }
 
-        constexpr bool has_enemy_pawn(ChessSquare square) const noexcept {
-            if (!square.in_bounds()) { return false; }
-            const ChessPiece piece = _board[square];
-            const PieceColor color = piece.color();
-            const PieceType type = piece.type();
-            return (color != PieceColor::NONE) && (color != _color_to_move)
-                                               && (type == PieceType::PAWN);
-        }
-
         constexpr bool can_move_to(ChessSquare square) const noexcept {
             return square.in_bounds() && (_board[square].color() != _color_to_move);
+        }
+
+        constexpr void leaper_move(
+            std::vector<ChessMove> &moves,
+            ChessSquare source,
+            ChessDisplacement displacement
+        ) const noexcept {
+            ChessSquare destination = source + displacement;
+            if (can_move_to(destination)) {
+                moves.emplace_back(source, destination);
+            }
         }
 
         constexpr void slider_moves(
@@ -91,28 +85,23 @@ namespace DZChess {
             }
         }
 
-        constexpr void leaper_move(
-            std::vector<ChessMove> &moves,
-            ChessSquare source,
-            ChessDisplacement displacement
-        ) const noexcept {
-            ChessSquare destination = source + displacement;
-            if (can_move_to(destination)) {
-                moves.emplace_back(source, destination);
-            }
+        constexpr coord_t pawn_origin_rank() const noexcept {
+            return (_color_to_move == PieceColor::WHITE) ? 1 : (BOARD_HEIGHT - 2);
         }
 
-        constexpr bool is_en_passant_capture(const ChessMove &move) const noexcept {
-            const ChessSquare dst = move.destination();
-            if (!is_empty(dst)) { return false; }
-            const ChessSquare src = move.source();
-            if (src.file() == dst.file()) { return false; }
-            const PieceType type = _board[src].type();
-            return (type == PieceType::PAWN);
+        constexpr coord_t promotion_rank() const noexcept {
+            return (_color_to_move == PieceColor::WHITE) ? (BOARD_HEIGHT - 1) : 0;
         }
 
-        constexpr bool is_capture(const ChessMove &move) const noexcept {
-            return has_enemy_piece(move.destination()) || is_en_passant_capture(move);
+        constexpr coord_t en_passant_rank() const noexcept {
+            return (_color_to_move == PieceColor::WHITE) ? (BOARD_HEIGHT - 4) : 3;
+        }
+
+        constexpr bool can_en_passant(ChessSquare source, 
+                                      ChessSquare destination) const noexcept {
+            return ((source.rank() == en_passant_rank()) &&
+                    (destination.file() == _en_passant_file) &&
+                    is_empty(destination));
         }
 
         constexpr void promotion_moves(
@@ -120,10 +109,9 @@ namespace DZChess {
             ChessSquare source,
             ChessSquare destination
         ) const noexcept {
-            if ((destination.rank() == 0) ||
-                (destination.rank() == BOARD_HEIGHT - 1)) {
-                moves.emplace_back(source, destination, PieceType::QUEEN );
-                moves.emplace_back(source, destination, PieceType::ROOK  );
+            if (destination.rank() == promotion_rank()) {
+                moves.emplace_back(source, destination, PieceType::QUEEN);
+                moves.emplace_back(source, destination, PieceType::ROOK);
                 moves.emplace_back(source, destination, PieceType::BISHOP);
                 moves.emplace_back(source, destination, PieceType::KNIGHT);
             } else {
@@ -135,8 +123,7 @@ namespace DZChess {
             std::vector<ChessMove> &moves,
             ChessSquare source
         ) const noexcept {
-            const coord_t up =
-                (_color_to_move == PieceColor::WHITE) ? +1 : -1;
+            const coord_t up = (_color_to_move == PieceColor::WHITE) ? +1 : -1;
             const ChessSquare one = source + ChessDisplacement{up, 0};
             if (is_empty(one)) {
                 promotion_moves(moves, source, one);
@@ -146,66 +133,57 @@ namespace DZChess {
                 }
             }
             const ChessSquare ldiag = source + ChessDisplacement{up, -1};
-            if (has_enemy_piece(ldiag) ||
-                ((source.rank() == en_passant_rank()) &&
-                 (ldiag.file() == _en_passant_file) &&
-                 is_empty(ldiag))) {
+            if (has_enemy_piece(ldiag) || can_en_passant(source, ldiag)) {
                 promotion_moves(moves, source, ldiag);
             }
             const ChessSquare rdiag = source + ChessDisplacement{up, +1};
-            if (has_enemy_piece(rdiag) ||
-                ((source.rank() == en_passant_rank()) &&
-                 (rdiag.file() == _en_passant_file) &&
-                 is_empty(rdiag))) {
+            if (has_enemy_piece(rdiag) || can_en_passant(source, rdiag)) {
                 promotion_moves(moves, source, rdiag);
             }
         }
 
-        void available_moves_ignoring_check(
+        constexpr void available_moves_ignoring_check(
             std::vector<ChessMove> &moves,
-            const ChessSquare &source
+            const ChessSquare &source,
+            PieceColor color
         ) const noexcept {
             const ChessPiece piece = _board[source];
-            if (piece.color() == _color_to_move) {
+            if (piece.color() == color) {
                 switch (piece.type()) {
-                    case PieceType::NONE: { break; }
-                    case PieceType::KING: {
-                        leaper_move(moves, source, {+1,  0});
-                        leaper_move(moves, source, {-1,  0});
-                        leaper_move(moves, source, { 0, +1});
-                        leaper_move(moves, source, { 0, -1});
+                    case PieceType::NONE: break;
+                    case PieceType::KING:
+                        leaper_move(moves, source, {+1, 0});
+                        leaper_move(moves, source, {-1, 0});
+                        leaper_move(moves, source, {0, +1});
+                        leaper_move(moves, source, {0, -1});
                         leaper_move(moves, source, {+1, +1});
                         leaper_move(moves, source, {+1, -1});
                         leaper_move(moves, source, {-1, +1});
                         leaper_move(moves, source, {-1, -1});
                         break;
-                    }
-                    case PieceType::QUEEN: {
-                        slider_moves(moves, source, {+1,  0});
-                        slider_moves(moves, source, {-1,  0});
-                        slider_moves(moves, source, { 0, +1});
-                        slider_moves(moves, source, { 0, -1});
+                    case PieceType::QUEEN:
+                        slider_moves(moves, source, {+1, 0});
+                        slider_moves(moves, source, {-1, 0});
+                        slider_moves(moves, source, {0, +1});
+                        slider_moves(moves, source, {0, -1});
                         slider_moves(moves, source, {+1, +1});
                         slider_moves(moves, source, {+1, -1});
                         slider_moves(moves, source, {-1, +1});
                         slider_moves(moves, source, {-1, -1});
                         break;
-                    }
-                    case PieceType::ROOK: {
-                        slider_moves(moves, source, {+1,  0});
-                        slider_moves(moves, source, {-1,  0});
-                        slider_moves(moves, source, { 0, +1});
-                        slider_moves(moves, source, { 0, -1});
+                    case PieceType::ROOK:
+                        slider_moves(moves, source, {+1, 0});
+                        slider_moves(moves, source, {-1, 0});
+                        slider_moves(moves, source, {0, +1});
+                        slider_moves(moves, source, {0, -1});
                         break;
-                    }
-                    case PieceType::BISHOP: {
+                    case PieceType::BISHOP:
                         slider_moves(moves, source, {+1, +1});
                         slider_moves(moves, source, {+1, -1});
                         slider_moves(moves, source, {-1, +1});
                         slider_moves(moves, source, {-1, -1});
                         break;
-                    }
-                    case PieceType::KNIGHT: {
+                    case PieceType::KNIGHT:
                         leaper_move(moves, source, {+1, +2});
                         leaper_move(moves, source, {+1, -2});
                         leaper_move(moves, source, {-1, +2});
@@ -215,37 +193,50 @@ namespace DZChess {
                         leaper_move(moves, source, {-2, +1});
                         leaper_move(moves, source, {-2, -1});
                         break;
-                    }
-                    case PieceType::PAWN: {
+                    case PieceType::PAWN:
                         pawn_moves(moves, source);
-                        break;
-                    }
+                        break;  
                 }
             }
         }
 
-        std::vector<ChessMove> available_moves_ignoring_check() const {
+        constexpr std::vector<ChessMove>
+        available_moves_ignoring_check(PieceColor color) const noexcept {
             std::vector<ChessMove> result;
             for (coord_t rank = 0; rank < BOARD_HEIGHT; ++rank) {
                 for (coord_t file = 0; file < BOARD_WIDTH; ++file) {
                     const ChessSquare source{rank, file};
-                    available_moves_ignoring_check(result, source);
+                    available_moves_ignoring_check(result, source, color);
                 }
             }
             return result;
         }
 
+        constexpr std::vector<ChessMove>
+        available_moves_ignoring_check() const noexcept {
+            return available_moves_ignoring_check(_color_to_move);
+        }
+
+        constexpr PieceColor opponent() const noexcept {
+            return (_color_to_move == PieceColor::BLACK)
+                   ? PieceColor::WHITE : PieceColor::BLACK;
+        }
+
+        constexpr bool is_attacked(ChessSquare square) const noexcept {
+            for (const ChessMove &move : available_moves_ignoring_check(opponent())) {
+                if (move.destination() == square) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
     public:
 
-        bool in_check() const {
-            const PieceColor opponent = (_color_to_move == PieceColor::BLACK)
-                                        ? PieceColor::WHITE : PieceColor::BLACK;
-            GameState copy = *this;
-            copy._color_to_move = opponent;
-            for (const ChessMove &move : copy.available_moves_ignoring_check()) {
-                const ChessPiece captured = copy._board[move.destination()];
-                if (captured.type() == PieceType::KING &&
-                    captured.color() == _color_to_move) {
+        constexpr bool in_check() const noexcept {
+            for (const ChessMove &move : available_moves_ignoring_check(opponent())) {
+                if (_board[move.destination()] ==
+                    ChessPiece{_color_to_move, PieceType::KING}) {
                     return true;
                 }
             }
@@ -253,6 +244,75 @@ namespace DZChess {
         }
 
     private:
+
+        constexpr void castling_moves(std::vector<ChessMove> &moves) const {
+            if ((_color_to_move == PieceColor::WHITE) &&
+                _white_short_castle_available) {
+                if (_board[ChessSquare{0, 4}] != WHITE_KING) {
+                    throw std::invalid_argument("king in wrong place to castle");
+                }
+                if (_board[ChessSquare{0, 7}] != WHITE_ROOK) {
+                    throw std::invalid_argument("rook in wrong place to castle");
+                }
+                if (is_empty(ChessSquare{0, 5}) &&
+                    is_empty(ChessSquare{0, 6}) &&
+                    !is_attacked(ChessSquare{0, 4}) &&
+                    !is_attacked(ChessSquare{0, 5}) &&
+                    !is_attacked(ChessSquare{0, 6})) {
+                    moves.emplace_back(ChessSquare{0, 4}, ChessSquare{0, 6});
+                }
+            }
+            if ((_color_to_move == PieceColor::WHITE) &&
+                _white_long_castle_available) {
+                if (_board[ChessSquare{0, 4}] != WHITE_KING) {
+                    throw std::invalid_argument("king in wrong place to castle");
+                }
+                if (_board[ChessSquare{0, 0}] != WHITE_ROOK) {
+                    throw std::invalid_argument("rook in wrong place to castle");
+                }
+                if (is_empty(ChessSquare{0, 1}) &&
+                    is_empty(ChessSquare{0, 2}) &&
+                    is_empty(ChessSquare{0, 3}) &&
+                    !is_attacked(ChessSquare{0, 2}) &&
+                    !is_attacked(ChessSquare{0, 3}) &&
+                    !is_attacked(ChessSquare{0, 4})) {
+                    moves.emplace_back(ChessSquare{0, 4}, ChessSquare{0, 2});
+                }
+            }
+            if ((_color_to_move == PieceColor::BLACK) &&
+                _black_short_castle_available) {
+                if (_board[ChessSquare{7, 4}] != BLACK_KING) {
+                    throw std::invalid_argument("king in wrong place to castle");
+                }
+                if (_board[ChessSquare{7, 7}] != BLACK_ROOK) {
+                    throw std::invalid_argument("rook in wrong place to castle");
+                }
+                if (is_empty(ChessSquare{7, 5}) &&
+                    is_empty(ChessSquare{7, 6}) &&
+                    !is_attacked(ChessSquare{7, 4}) &&
+                    !is_attacked(ChessSquare{7, 5}) &&
+                    !is_attacked(ChessSquare{7, 6})) {
+                    moves.emplace_back(ChessSquare{7, 4}, ChessSquare{7, 6});
+                }
+            }
+            if ((_color_to_move == PieceColor::BLACK) &&
+                _black_long_castle_available) {
+                if (_board[ChessSquare{7, 4}] != BLACK_KING) {
+                    throw std::invalid_argument("king in wrong place to castle");
+                }
+                if (_board[ChessSquare{7, 0}] != BLACK_ROOK) {
+                    throw std::invalid_argument("rook in wrong place to castle");
+                }
+                if (is_empty(ChessSquare{7, 1}) &&
+                    is_empty(ChessSquare{7, 2}) &&
+                    is_empty(ChessSquare{7, 3}) &&
+                    !is_attacked(ChessSquare{7, 2}) &&
+                    !is_attacked(ChessSquare{7, 3}) &&
+                    !is_attacked(ChessSquare{7, 4})) {
+                    moves.emplace_back(ChessSquare{7, 4}, ChessSquare{7, 2});
+                }
+            }
+        }
 
         bool puts_self_in_check(const ChessMove &move) const {
             GameState next = *this;
@@ -276,6 +336,7 @@ namespace DZChess {
                     result.push_back(move);
                 }
             }
+            castling_moves(result);
             return result;
         }
 
@@ -295,6 +356,33 @@ namespace DZChess {
             return (next.available_moves().size() == 0);
         }
 
+        constexpr bool is_en_passant_capture(const ChessMove &move) const noexcept {
+            const ChessSquare dst = move.destination();
+            if (!is_empty(dst)) { return false; }
+            const ChessSquare src = move.source();
+            if (src.file() == dst.file()) { return false; }
+            const PieceType type = _board[src].type();
+            return (type == PieceType::PAWN);
+        }
+
+        constexpr bool is_capture(const ChessMove &move) const noexcept {
+            return has_enemy_piece(move.destination()) || is_en_passant_capture(move);
+        }
+
+        constexpr bool is_short_castle(const ChessMove &move) const noexcept {
+            const ChessPiece piece = _board[move.source()];
+            return ((piece.type() == PieceType::KING) &&
+                    (move.source().file() == 4) &&
+                    (move.destination().file() == 6));
+        }
+
+        constexpr bool is_long_castle(const ChessMove &move) const noexcept {
+            const ChessPiece piece = _board[move.source()];
+            return ((piece.type() == PieceType::KING) &&
+                    (move.source().file() == 4) &&
+                    (move.destination().file() == 2));
+        }
+
     public:
 
         std::vector<std::pair<ChessMove, std::string>>
@@ -303,48 +391,55 @@ namespace DZChess {
             const auto moves = available_moves();
             for (const ChessMove &move : moves) {
                 std::ostringstream name;
-                switch (_board[move.source()].type()) {
-                    case PieceType::NONE: {
-                        throw std::invalid_argument(
-                            "attempted to move from empty square"
-                        );
-                    }
-                    case PieceType::KING  : { name << 'K'; break; }
-                    case PieceType::QUEEN : { name << 'Q'; break; }
-                    case PieceType::ROOK  : { name << 'R'; break; }
-                    case PieceType::BISHOP: { name << 'B'; break; }
-                    case PieceType::KNIGHT: { name << 'N'; break; }
-                    case PieceType::PAWN: {
-                        if (is_capture(move)) {
-                            name << static_cast<char>('a' + move.source().file());
-                        }
-                        break;
-                    }
-                }
-                if (is_capture(move)) { name << 'x'; }
-                name << move.destination();
-                if (move.promotion_type() != PieceType::NONE) {
-                    name << '=';
-                    switch (move.promotion_type()) {
+                const ChessPiece piece = _board[move.source()];
+                if (is_short_castle(move)) {
+                    name << "O-O";
+                } else if (is_long_castle(move)) {
+                    name << "O-O-O";
+                } else {
+                    switch (piece.type()) {
                         case PieceType::NONE: {
-                            throw std::invalid_argument("cannot promote to none");
+                            throw std::invalid_argument(
+                                "attempted to move from empty square"
+                            );
                         }
-                        case PieceType::KING: {
-                            throw std::invalid_argument("cannot promote to king");
-                        }
+                        case PieceType::KING  : { name << 'K'; break; }
                         case PieceType::QUEEN : { name << 'Q'; break; }
                         case PieceType::ROOK  : { name << 'R'; break; }
                         case PieceType::BISHOP: { name << 'B'; break; }
                         case PieceType::KNIGHT: { name << 'N'; break; }
                         case PieceType::PAWN: {
-                            throw std::invalid_argument("cannot promote to pawn");
+                            if (is_capture(move)) {
+                                name << static_cast<char>('a' + move.source().file());
+                            }
+                            break;
                         }
                     }
-                }
-                if (puts_enemy_in_checkmate(move)) {
-                    name << '#';
-                } else if (puts_enemy_in_check(move)) {
-                    name << '+';
+                    if (is_capture(move)) { name << 'x'; }
+                    name << move.destination();
+                    if (move.promotion_type() != PieceType::NONE) {
+                        name << '=';
+                        switch (move.promotion_type()) {
+                            case PieceType::NONE: {
+                                throw std::invalid_argument("cannot promote to none");
+                            }
+                            case PieceType::KING: {
+                                throw std::invalid_argument("cannot promote to king");
+                            }
+                            case PieceType::QUEEN : { name << 'Q'; break; }
+                            case PieceType::ROOK  : { name << 'R'; break; }
+                            case PieceType::BISHOP: { name << 'B'; break; }
+                            case PieceType::KNIGHT: { name << 'N'; break; }
+                            case PieceType::PAWN: {
+                                throw std::invalid_argument("cannot promote to pawn");
+                            }
+                        }
+                    }
+                    if (puts_enemy_in_checkmate(move)) {
+                        name << '#';
+                    } else if (puts_enemy_in_check(move)) {
+                        name << '+';
+                    }
                 }
                 result.emplace_back(move, name.str());
             }
@@ -369,15 +464,52 @@ namespace DZChess {
                 }
                 _board[ChessSquare{src.rank(), dst.file()}] = EMPTY_SQUARE;
             }
+            if (is_short_castle(move)) {
+                _board.make_move(ChessMove{
+                    ChessSquare{move.source().rank(), 7},
+                    ChessSquare{move.source().rank(), 5}
+                });
+            }
+            if (is_long_castle(move)) {
+                _board.make_move(ChessMove{
+                    ChessSquare{move.source().rank(), 0},
+                    ChessSquare{move.source().rank(), 3}
+                });
+            }
             _board.make_move(move);
+            _color_to_move = opponent();
             if ((type == PieceType::PAWN) &&
                 (std::abs(src.rank() - dst.rank()) == 2)) {
                 _en_passant_file = dst.file();
             } else {
                 _en_passant_file = -1;
             }
-            _color_to_move = (_color_to_move == PieceColor::BLACK)
-                             ? PieceColor::WHITE : PieceColor::BLACK;
+            if (move.source() == ChessSquare{0, 7} ||
+                move.destination() == ChessSquare{0, 7}) {
+                _white_short_castle_available = false;
+            }
+            if (move.source() == ChessSquare{0, 0} ||
+                move.destination() == ChessSquare{0, 0}) {
+                _white_long_castle_available = false;
+            }
+            if (move.source() == ChessSquare{0, 4} ||
+                move.destination() == ChessSquare{0, 4}) {
+                _white_short_castle_available = false;
+                _white_long_castle_available = false;
+            }
+            if (move.source() == ChessSquare{7, 7} ||
+                move.destination() == ChessSquare{7, 7}) {
+                _black_short_castle_available = false;
+            }
+            if (move.source() == ChessSquare{7, 0} ||
+                move.destination() == ChessSquare{7, 0}) {
+                _black_long_castle_available = false;
+            }
+            if (move.source() == ChessSquare{7, 4} ||
+                move.destination() == ChessSquare{7, 4}) {
+                _black_short_castle_available = false;
+                _black_long_castle_available = false;
+            }
         }
 
     }; // class GameState

@@ -1,6 +1,7 @@
 #ifndef DZCHESS_CHESS_PIECE_HPP_INCLUDED
 #define DZCHESS_CHESS_PIECE_HPP_INCLUDED
 
+#include <compare> // for operator<=>
 #include <cstdint> // for std::uint_fast8_t
 #include <ostream> // for std::ostream
 
@@ -35,6 +36,8 @@ namespace DZChess {
 
         constexpr PieceColor color() const noexcept { return _color; }
         constexpr PieceType  type () const noexcept { return _type ; }
+
+        constexpr auto operator<=>(const ChessPiece &) const noexcept = default;
 
         constexpr ChessPiece promote(PieceType type) const noexcept {
             return (type == PieceType::NONE) ? (*this) : ChessPiece(_color, type);

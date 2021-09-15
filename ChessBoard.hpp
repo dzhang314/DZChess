@@ -2,6 +2,7 @@
 #define DZCHESS_CHESS_BOARD_HPP_INCLUDED
 
 #include <array>          // for std::array
+#include <compare>        // for operator<=>
 #include <cstdint>        // for std::int_fast8_t
 #include <ostream>        // for std::ostream
 #include <stdexcept>      // for std::invalid_argument
@@ -46,25 +47,27 @@ namespace DZChess {
         explicit constexpr ChessSquare(coord_t rank, coord_t file) noexcept :
             _rank(rank), _file(file) {}
 
-        explicit constexpr ChessSquare(char file, char rank) :
-            _rank(static_cast<coord_t>(rank - MIN_RANK)),
-            _file(static_cast<coord_t>(file - MIN_FILE)) {
-            if (!(MIN_FILE <= file && file <= MAX_FILE)) {
-                throw std::invalid_argument(
-                    "attempted to construct ChessSquare "
-                    "with file out of range (a - h)"
-                );
-            }
-            if (!(MIN_RANK <= rank && rank <= MAX_RANK)) {
-                throw std::invalid_argument(
-                    "attempted to construct ChessSquare "
-                    "with rank out of range (1 - 8)"
-                );
-            }
-        }
+        //explicit constexpr ChessSquare(char file, char rank) :
+        //    _rank(static_cast<coord_t>(rank - MIN_RANK)),
+        //    _file(static_cast<coord_t>(file - MIN_FILE)) {
+        //    if (!(MIN_FILE <= file && file <= MAX_FILE)) {
+        //        throw std::invalid_argument(
+        //            "attempted to construct ChessSquare "
+        //            "with file out of range (a - h)"
+        //        );
+        //    }
+        //    if (!(MIN_RANK <= rank && rank <= MAX_RANK)) {
+        //        throw std::invalid_argument(
+        //            "attempted to construct ChessSquare "
+        //            "with rank out of range (1 - 8)"
+        //        );
+        //    }
+        //}
 
         constexpr coord_t rank() const noexcept { return _rank; }
         constexpr coord_t file() const noexcept { return _file; }
+
+        constexpr auto operator<=>(const ChessSquare &) const noexcept = default;
 
         constexpr bool in_bounds() const noexcept {
             return ((0 <= _rank) && (_rank < BOARD_HEIGHT) &&
@@ -146,7 +149,7 @@ namespace DZChess {
 
     private:
 
-        std::array<std::array<ChessPiece, 8>, 8> _data;
+        std::array<std::array<ChessPiece, BOARD_WIDTH>, BOARD_HEIGHT> _data;
 
     public:
 
@@ -169,23 +172,23 @@ namespace DZChess {
                       WHITE_KING, WHITE_BISHOP, WHITE_KNIGHT, WHITE_ROOK}}}}) {}
 
         constexpr ChessPiece &operator[](ChessSquare square) {
-            if (!(0 <= square.rank() && square.rank() <= 7)) {
+            if (!(0 <= square.rank() && square.rank() < BOARD_HEIGHT)) {
                 throw std::invalid_argument("rank out of range");
             }
-            if (!(0 <= square.file() && square.file() <= 7)) {
+            if (!(0 <= square.file() && square.file() < BOARD_WIDTH)) {
                 throw std::invalid_argument("file out of range");
             }
-            return _data[7 - square.rank()][square.file()];
+            return _data[BOARD_HEIGHT - square.rank() - 1][square.file()];
         }
 
         constexpr const ChessPiece &operator[](ChessSquare square) const {
-            if (!(0 <= square.rank() && square.rank() <= 7)) {
+            if (!(0 <= square.rank() && square.rank() < BOARD_HEIGHT)) {
                 throw std::invalid_argument("rank out of range");
             }
-            if (!(0 <= square.file() && square.file() <= 7)) {
+            if (!(0 <= square.file() && square.file() < BOARD_WIDTH)) {
                 throw std::invalid_argument("file out of range");
             }
-            return _data[7 - square.rank()][square.file()];
+            return _data[BOARD_HEIGHT - square.rank() - 1][square.file()];
         }
 
         void make_move(const ChessMove &move) {
