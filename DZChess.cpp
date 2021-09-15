@@ -13,7 +13,8 @@ namespace DZChess::ECO {
     constexpr GameState C44_KINGS_PAWN = C40_KINGS_KNIGHT.after_move("b8c6");
     constexpr GameState C60_RUY_LOPEZ = C44_KINGS_PAWN.after_move("f1b5");
 
-}
+} // namespace DZChess::ECO
+
 
 int main() {
     std::cout << std::endl;

@@ -480,16 +480,20 @@ namespace DZChess {
         std::vector<std::pair<ChessMove, std::string>>
         available_moves_and_names() const {
             std::vector<std::pair<ChessMove, std::string>> result;
+            const auto all_moves = available_moves_ignoring_check();
             const auto moves = available_moves();
             for (const ChessMove &move : moves) {
+                const ChessSquare src = move.source();
+                const ChessSquare dst = move.destination();
+                const ChessPiece piece = _board[src];
+                const PieceType type = piece.type();
                 std::ostringstream name;
-                const ChessPiece piece = _board[move.source()];
                 if (is_short_castle(move)) {
                     name << "O-O";
                 } else if (is_long_castle(move)) {
                     name << "O-O-O";
                 } else {
-                    switch (piece.type()) {
+                    switch (type) {
                         case PieceType::NONE: {
                             throw std::invalid_argument(
                                 "attempted to move from empty square"
@@ -502,13 +506,43 @@ namespace DZChess {
                         case PieceType::KNIGHT: { name << 'N'; break; }
                         case PieceType::PAWN: {
                             if (is_capture(move)) {
-                                name << static_cast<char>('a' + move.source().file());
+                                name << static_cast<char>('a' + src.file());
                             }
                             break;
                         }
                     }
+                    if (type != PieceType::PAWN) {
+                        bool ambiguous_rank = false;
+                        bool ambiguous_file = false;
+                        bool ambiguous_diag = false;
+                        for (const ChessMove &other : all_moves) {
+                            const ChessSquare osrc = other.source();
+                            const ChessSquare odst = other.destination();
+                            if ((_board[osrc].type() == type) && (odst == dst)) {
+                                if ((osrc.rank() == src.rank()) &&
+                                    (osrc.file() != src.file())) {
+                                    ambiguous_rank = true;
+                                } else if ((osrc.rank() != src.rank()) &&
+                                           (osrc.file() == src.file())) {
+                                    ambiguous_file = true;
+                                } else if ((osrc.rank() != src.rank()) &&
+                                           (osrc.file() != src.file())) {
+                                    ambiguous_diag = true;
+                                }
+                            }
+                        }
+                        if (ambiguous_rank || ambiguous_file || ambiguous_diag) {
+                            if (!ambiguous_file) {
+                                name << static_cast<char>(MIN_FILE + src.file());
+                            } else if (!ambiguous_rank) {
+                                name << static_cast<char>(MIN_RANK + src.rank());
+                            } else {
+                                name << src;
+                            }
+                        }
+                    }
                     if (is_capture(move)) { name << 'x'; }
-                    name << move.destination();
+                    name << dst;
                     if (move.promotion_type() != PieceType::NONE) {
                         name << '=';
                         switch (move.promotion_type()) {

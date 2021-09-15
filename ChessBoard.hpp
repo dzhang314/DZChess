@@ -22,33 +22,33 @@ namespace DZChess {
     }; // struct ChessDisplacement
 
 
-    constexpr coord_t BOARD_WIDTH = 8;
     constexpr coord_t BOARD_HEIGHT = 8;
+    constexpr coord_t BOARD_WIDTH = 8;
 
-    constexpr char MIN_FILE = 'a';
     constexpr char MIN_RANK = '1';
+    constexpr char MIN_FILE = 'a';
 
-    constexpr char MAX_FILE = MIN_FILE + BOARD_WIDTH - 1;
     constexpr char MAX_RANK = MIN_RANK + BOARD_HEIGHT - 1;
+    constexpr char MAX_FILE = MIN_FILE + BOARD_WIDTH - 1;
 
-
-    constexpr bool is_valid_file(char file) noexcept {
-        return (MIN_FILE <= file) && (file <= MAX_FILE);
-    }
 
     constexpr bool is_valid_rank(char rank) noexcept {
         return (MIN_RANK <= rank) && (rank <= MAX_RANK);
     }
 
-    constexpr void assert_valid_file(char file) {
-        if (!is_valid_file(file)) {
-            throw std::invalid_argument("invalid file");
-        }
+    constexpr bool is_valid_file(char file) noexcept {
+        return (MIN_FILE <= file) && (file <= MAX_FILE);
     }
 
     constexpr void assert_valid_rank(char rank) {
         if (!is_valid_rank(rank)) {
             throw std::invalid_argument("invalid rank");
+        }
+    }
+
+    constexpr void assert_valid_file(char file) {
+        if (!is_valid_file(file)) {
+            throw std::invalid_argument("invalid file");
         }
     }
 
