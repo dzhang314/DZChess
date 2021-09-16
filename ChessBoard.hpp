@@ -137,6 +137,10 @@ namespace DZChess {
             else if (str[4] == 'b') { _promotion_type = PieceType::BISHOP; }
             else if (str[4] == 'k') { _promotion_type = PieceType::KNIGHT; }
             else                    { _promotion_type = PieceType::NONE; }
+            if ((str[4] != '\0') && (str[5] != '\0')) {
+                throw std::invalid_argument("string passed to ChessMove "
+                                            "is longer than expected");
+            }
         }
 
         constexpr ChessSquare source        () const noexcept { return _source        ; }

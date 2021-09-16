@@ -7,18 +7,18 @@
 namespace DZChess::ECO {
 
     constexpr GameState INITIAL_STATE;
-    constexpr GameState B00_KINGS_PAWN = INITIAL_STATE.after_move("e2e4");
-    constexpr GameState C20_KINGS_PAWN = B00_KINGS_PAWN.after_move("e7e5");
-    constexpr GameState C40_KINGS_KNIGHT = C20_KINGS_PAWN.after_move("g1f3");
-    constexpr GameState C44_KINGS_PAWN = C40_KINGS_KNIGHT.after_move("b8c6");
-    constexpr GameState C60_RUY_LOPEZ = C44_KINGS_PAWN.after_move("f1b5");
+    //constexpr GameState B00_KINGS_PAWN = INITIAL_STATE.after_move_checked("e2e4");
+    //constexpr GameState C20_KINGS_PAWN = B00_KINGS_PAWN.after_move_checked("e7e5");
+    //constexpr GameState C40_KINGS_KNIGHT = C20_KINGS_PAWN.after_move_checked("g1f3");
+    //constexpr GameState C44_KINGS_PAWN = C40_KINGS_KNIGHT.after_move_checked("b8c6");
+    //constexpr GameState C60_RUY_LOPEZ = C44_KINGS_PAWN.after_move_checked("f1b5");
 
 } // namespace DZChess::ECO
 
 
 int main() {
     std::cout << std::endl;
-    DZChess::GameState state = DZChess::ECO::C60_RUY_LOPEZ;
+    DZChess::GameState state = DZChess::ECO::INITIAL_STATE;
     while (true) {
         std::cout << state.board() << std::endl;
         const auto moves = state.available_moves_and_names();
@@ -50,7 +50,9 @@ int main() {
                 std::cout << selected_move << " is not a legal move. "
                           << "The legal moves in this position are:" << std::endl;
                 for (const auto &[move, name] : moves) {
-                    std::cout << "    " << name << std::endl;
+                    std::cout << "    " << name << " ("
+                              << -state.after_move(move).evaluate(4)
+                              << ")" << std::endl;
                 }
                 std::cout << std::endl;
             } else if (num_matches == 1) {

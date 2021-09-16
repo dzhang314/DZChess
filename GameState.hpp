@@ -1,10 +1,12 @@
 #ifndef DZCHESS_GAME_STATE_HPP_INCLUDED
 #define DZCHESS_GAME_STATE_HPP_INCLUDED
 
-#include <sstream> // for std::ostringstream
-#include <string>  // for std::string
-#include <utility> // for std::pair
-#include <vector>  // for std::vector
+#include <algorithm> // for std::min
+#include <limits>    // for std::numeric_limits::<T>infinity
+#include <sstream>   // for std::ostringstream
+#include <string>    // for std::string
+#include <utility>   // for std::pair
+#include <vector>    // for std::vector
 
 #include "ChessPiece.hpp"
 #include "ChessBoard.hpp"
@@ -18,6 +20,8 @@ namespace DZChess {
     private: // ================================================================== MEMBER VARIABLES
 
         ChessBoard _board;
+        ChessSquare _white_king_location;
+        ChessSquare _black_king_location;
         PieceColor _color_to_move;
         coord_t _en_passant_file;
         bool _white_short_castle_available;
@@ -29,6 +33,8 @@ namespace DZChess {
 
         explicit constexpr GameState() noexcept :
             _board(),                            // starting position
+            _white_king_location(0, 4),          // white king starts on e1
+            _black_king_location(7, 4),          // black king starts on e8
             _color_to_move(PieceColor::WHITE),   // white goes first
             _en_passant_file(-1),                // en passant not available
             _white_short_castle_available(true), // all castling available
@@ -49,7 +55,7 @@ namespace DZChess {
         }
 
         constexpr bool is_empty(ChessSquare square) const noexcept {
-            return square.in_bounds() && (_board[square].color() == PieceColor::NONE);
+            return square.in_bounds() && (_board[square].type() == PieceType::NONE);
         }
 
         constexpr bool has_own_piece(ChessSquare square) const noexcept {
@@ -58,8 +64,45 @@ namespace DZChess {
 
         constexpr bool has_enemy_piece(ChessSquare square) const noexcept {
             if (!square.in_bounds()) { return false; }
-            const PieceColor color = _board[square].color();
-            return (color != PieceColor::NONE) && (color != _color_to_move);
+            const ChessPiece piece = _board[square];
+            return (piece.type() != PieceType::NONE) && (piece.color() != _color_to_move);
+        }
+
+        constexpr bool has_enemy_queen_or_rook(ChessSquare square) const noexcept {
+            if (!square.in_bounds()) { return false; }
+            const ChessPiece piece = _board[square];
+            const PieceType type = piece.type();
+            return ((piece.color() != _color_to_move) &&
+                    ((type == PieceType::QUEEN) || (type == PieceType::ROOK)));
+        }
+
+        constexpr bool has_enemy_queen_or_bishop(ChessSquare square) const noexcept {
+            if (!square.in_bounds()) { return false; }
+            const ChessPiece piece = _board[square];
+            const PieceType type = piece.type();
+            return ((piece.color() != _color_to_move) &&
+                    ((type == PieceType::QUEEN) || (type == PieceType::BISHOP)));
+        }
+
+        constexpr bool has_enemy_knight(ChessSquare square) const noexcept {
+            if (!square.in_bounds()) { return false; }
+            const ChessPiece piece = _board[square];
+            return ((piece.color() != _color_to_move) &&
+                    (piece.type() == PieceType::KNIGHT));
+        }
+
+        constexpr bool has_enemy_pawn(ChessSquare square) const noexcept {
+            if (!square.in_bounds()) { return false; }
+            const ChessPiece piece = _board[square];
+            return ((piece.color() != _color_to_move) &&
+                    (piece.type() == PieceType::PAWN));
+        }
+
+        constexpr bool has_enemy_king(ChessSquare square) const noexcept {
+            if (!square.in_bounds()) { return false; }
+            const ChessPiece piece = _board[square];
+            return ((piece.color() != _color_to_move) &&
+                    (piece.type() == PieceType::KING));
         }
 
         constexpr bool can_move_to(ChessSquare square) const noexcept {
@@ -150,6 +193,13 @@ namespace DZChess {
                                  ChessSquare{src.rank(), 3});
             }
             _board.make_move(move);
+            if (type == PieceType::KING) {
+                if (_color_to_move == PieceColor::BLACK) {
+                    _black_king_location = dst;
+                } else {
+                    _white_king_location = dst;
+                }
+            }
             _color_to_move = opponent();
             if ((type == PieceType::PAWN) &&
                 ((src.rank() - dst.rank() == +2) ||
@@ -201,7 +251,7 @@ namespace DZChess {
             std::vector<ChessMove> &moves,
             ChessSquare source
         ) const noexcept {
-            const coord_t up = (_color_to_move == PieceColor::WHITE) ? +1 : -1;
+            const coord_t up = (_color_to_move == PieceColor::BLACK) ? -1 : +1;
             const ChessSquare one = source + ChessDisplacement{up, 0};
             if (is_empty(one)) {
                 promotion_moves(moves, source, one);
@@ -308,7 +358,7 @@ namespace DZChess {
             }
         }
 
-        constexpr std::vector<ChessMove>
+        std::vector<ChessMove>
         available_moves_ignoring_check(PieceColor color) const noexcept {
             std::vector<ChessMove> result;
             for (coord_t rank = 0; rank < BOARD_HEIGHT; ++rank) {
@@ -320,20 +370,55 @@ namespace DZChess {
             return result;
         }
 
-        constexpr std::vector<ChessMove>
+        std::vector<ChessMove>
         available_moves_ignoring_check() const noexcept {
             return available_moves_ignoring_check(_color_to_move);
         }
 
     private: // ========================================================= GENERATING CASTLING MOVES
 
+        constexpr bool orthogonal_check(ChessSquare source,
+                                        ChessDisplacement displacement) const noexcept {
+            ChessSquare square = source + displacement;
+            while (is_empty(square)) { square += displacement; }
+            return has_enemy_queen_or_rook(square);
+        }
+
+        constexpr bool diagonal_check(ChessSquare source,
+                                      ChessDisplacement displacement) const noexcept {
+            ChessSquare square = source + displacement;
+            while (is_empty(square)) { square += displacement; }
+            return has_enemy_queen_or_bishop(square);
+        }
+
         constexpr bool is_attacked(ChessSquare square) const noexcept {
-            for (const ChessMove &move : available_moves_ignoring_check(opponent())) {
-                if (move.destination() == square) {
-                    return true;
-                }
-            }
-            return false;
+            const coord_t up = (_color_to_move == PieceColor::BLACK) ? -1 : +1;
+            return (has_enemy_knight(square + ChessDisplacement{+1, +2}) ||
+                    has_enemy_knight(square + ChessDisplacement{+1, -2}) ||
+                    has_enemy_knight(square + ChessDisplacement{-1, +2}) ||
+                    has_enemy_knight(square + ChessDisplacement{-1, -2}) ||
+                    has_enemy_knight(square + ChessDisplacement{+2, +1}) ||
+                    has_enemy_knight(square + ChessDisplacement{+2, -1}) ||
+                    has_enemy_knight(square + ChessDisplacement{-2, +1}) ||
+                    has_enemy_knight(square + ChessDisplacement{-2, -1}) ||
+                    has_enemy_pawn(square + ChessDisplacement{up, +1}) ||
+                    has_enemy_pawn(square + ChessDisplacement{up, -1}) ||
+                    orthogonal_check(square, ChessDisplacement{0, +1}) ||
+                    orthogonal_check(square, ChessDisplacement{0, -1}) ||
+                    orthogonal_check(square, ChessDisplacement{+1, 0}) ||
+                    orthogonal_check(square, ChessDisplacement{-1, 0}) ||
+                    diagonal_check(square, ChessDisplacement{+1, +1}) ||
+                    diagonal_check(square, ChessDisplacement{+1, -1}) ||
+                    diagonal_check(square, ChessDisplacement{-1, +1}) ||
+                    diagonal_check(square, ChessDisplacement{-1, -1}) ||
+                    has_enemy_king(square + ChessDisplacement{0, +1}) ||
+                    has_enemy_king(square + ChessDisplacement{0, -1}) ||
+                    has_enemy_king(square + ChessDisplacement{+1, 0}) ||
+                    has_enemy_king(square + ChessDisplacement{-1, 0}) ||
+                    has_enemy_king(square + ChessDisplacement{+1, +1}) ||
+                    has_enemy_king(square + ChessDisplacement{+1, -1}) ||
+                    has_enemy_king(square + ChessDisplacement{-1, +1}) ||
+                    has_enemy_king(square + ChessDisplacement{-1, -1}));
         }
 
         constexpr void castling_moves(std::vector<ChessMove> &moves) const {
@@ -407,13 +492,28 @@ namespace DZChess {
     public: // ======================================================= DETECTING AND HANDLING CHECK
 
         constexpr bool in_check() const {
-            for (const ChessMove &move : available_moves_ignoring_check(opponent())) {
-                const ChessPiece captured = _board[move.destination()];
-                if (captured == ChessPiece{_color_to_move, PieceType::KING}) {
-                    return true;
-                }
-            }
-            return false;
+            const ChessSquare king_location =
+                (_color_to_move == PieceColor::BLACK)
+                ? _black_king_location : _white_king_location;
+            const coord_t up = (_color_to_move == PieceColor::BLACK) ? -1 : +1;
+            return (has_enemy_knight(king_location + ChessDisplacement{+1, +2}) ||
+                    has_enemy_knight(king_location + ChessDisplacement{+1, -2}) ||
+                    has_enemy_knight(king_location + ChessDisplacement{-1, +2}) ||
+                    has_enemy_knight(king_location + ChessDisplacement{-1, -2}) ||
+                    has_enemy_knight(king_location + ChessDisplacement{+2, +1}) ||
+                    has_enemy_knight(king_location + ChessDisplacement{+2, -1}) ||
+                    has_enemy_knight(king_location + ChessDisplacement{-2, +1}) ||
+                    has_enemy_knight(king_location + ChessDisplacement{-2, -1}) ||
+                    has_enemy_pawn(king_location + ChessDisplacement{up, +1}) ||
+                    has_enemy_pawn(king_location + ChessDisplacement{up, -1}) ||
+                    orthogonal_check(king_location, ChessDisplacement{0, +1}) ||
+                    orthogonal_check(king_location, ChessDisplacement{0, -1}) ||
+                    orthogonal_check(king_location, ChessDisplacement{+1, 0}) ||
+                    orthogonal_check(king_location, ChessDisplacement{-1, 0}) ||
+                    diagonal_check(king_location, ChessDisplacement{+1, +1}) ||
+                    diagonal_check(king_location, ChessDisplacement{+1, -1}) ||
+                    diagonal_check(king_location, ChessDisplacement{-1, +1}) ||
+                    diagonal_check(king_location, ChessDisplacement{-1, -1}));
         }
 
     private:
@@ -433,7 +533,7 @@ namespace DZChess {
 
     public: // ========================================================= GENERATING ALL LEGAL MOVES
 
-        constexpr std::vector<ChessMove> available_moves() const {
+        std::vector<ChessMove> available_moves() const {
             std::vector<ChessMove> result;
             for (const ChessMove &move : available_moves_ignoring_check()) {
                 if (!puts_self_in_check(move)) {
@@ -444,7 +544,7 @@ namespace DZChess {
             return result;
         }
 
-        constexpr GameState after_move(const ChessMove &move) const {
+        GameState after_move_checked(const ChessMove &move) const {
             for (const ChessMove &legal_move : available_moves()) {
                 if (move == legal_move) {
                     GameState copy = *this;
@@ -455,8 +555,61 @@ namespace DZChess {
             throw std::invalid_argument("attempted to make illegal move");
         }
 
+        GameState after_move_checked(const char *str) const {
+            return after_move_checked(ChessMove{str});
+        }
+
+        constexpr GameState after_move(const ChessMove &move) const {
+            GameState copy = *this;
+            copy.make_move(move);
+            return copy;
+        }
+
         constexpr GameState after_move(const char *str) const {
             return after_move(ChessMove{str});
+        }
+
+    public: // ========================================================================= EVALUATION
+
+        static constexpr double material_value(PieceType type) noexcept {
+            switch (type) {
+                case PieceType::NONE: return 0.0;
+                case PieceType::KING: return 0.0;
+                case PieceType::QUEEN: return 9.0;
+                case PieceType::ROOK: return 5.0;
+                case PieceType::BISHOP: return 3.0;
+                case PieceType::KNIGHT: return 3.0;
+                case PieceType::PAWN: return 1.0;
+            }
+        }
+
+        constexpr double material_value() const {
+            double result = 0.0;
+            for (coord_t rank = 0; rank < BOARD_HEIGHT; ++rank) {
+                for (coord_t file = 0; file < BOARD_WIDTH; ++file) {
+                    const ChessSquare square{rank, file};
+                    const ChessPiece piece = _board[square];
+                    if (piece.color() == _color_to_move) {
+                        result += material_value(piece.type());
+                    } else {
+                        result -= material_value(piece.type());
+                    }
+                }
+            }
+            return result;
+        }
+
+        double evaluate(int depth) const {
+            if (depth <= 0) {
+                return material_value();
+            } else {
+                double min_score = std::numeric_limits<double>::infinity();
+                for (const ChessMove &move : available_moves()) {
+                    const double score = this->after_move(move).evaluate(depth - 1);
+                    min_score = std::min(min_score, score);
+                }
+                return -min_score;
+            }
         }
 
     private: // ====================================================================== NAMING MOVES
