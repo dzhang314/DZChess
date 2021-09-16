@@ -2,6 +2,7 @@
 #define DZCHESS_CHESS_PIECE_HPP_INCLUDED
 
 #include <compare> // for operator<=>
+#include <cstddef> // for std::size_t
 #include <cstdint> // for std::uint_fast8_t
 #include <ostream> // for std::ostream
 
@@ -41,6 +42,11 @@ namespace DZChess {
 
         constexpr ChessPiece promote(PieceType type) const noexcept {
             return (type == PieceType::NONE) ? (*this) : ChessPiece(_color, type);
+        }
+
+        constexpr std::size_t hash() const noexcept {
+            return (7 * static_cast<std::size_t>(_color) +
+                    static_cast<std::size_t>(_type));
         }
 
         friend std::ostream& operator<<(std::ostream& os, const ChessPiece& piece) {

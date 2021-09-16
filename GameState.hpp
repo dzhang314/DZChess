@@ -1,12 +1,11 @@
 #ifndef DZCHESS_GAME_STATE_HPP_INCLUDED
 #define DZCHESS_GAME_STATE_HPP_INCLUDED
 
-#include <algorithm> // for std::min
-#include <limits>    // for std::numeric_limits::<T>infinity
-#include <sstream>   // for std::ostringstream
-#include <string>    // for std::string
-#include <utility>   // for std::pair
-#include <vector>    // for std::vector
+#include <compare> // for operator<=>
+#include <sstream> // for std::ostringstream
+#include <string>  // for std::string
+#include <utility> // for std::pair
+#include <vector>  // for std::vector
 
 #include "ChessPiece.hpp"
 #include "ChessBoard.hpp"
@@ -45,7 +44,10 @@ namespace DZChess {
     public: // ========================================================================== ACCESSORS
 
         constexpr const ChessBoard &board() const noexcept { return _board; }
+        constexpr PieceColor color_to_move() const noexcept { return _color_to_move; }
         constexpr coord_t en_passant_file() const noexcept { return _en_passant_file; }
+
+        constexpr auto operator<=>(const GameState &) const noexcept = default;
 
     private: // ============================================================== QUERYING BOARD STATE
 
@@ -569,49 +571,6 @@ namespace DZChess {
             return after_move(ChessMove{str});
         }
 
-    public: // ========================================================================= EVALUATION
-
-        static constexpr double material_value(PieceType type) noexcept {
-            switch (type) {
-                case PieceType::NONE: return 0.0;
-                case PieceType::KING: return 0.0;
-                case PieceType::QUEEN: return 9.0;
-                case PieceType::ROOK: return 5.0;
-                case PieceType::BISHOP: return 3.0;
-                case PieceType::KNIGHT: return 3.0;
-                case PieceType::PAWN: return 1.0;
-            }
-        }
-
-        constexpr double material_value() const {
-            double result = 0.0;
-            for (coord_t rank = 0; rank < BOARD_HEIGHT; ++rank) {
-                for (coord_t file = 0; file < BOARD_WIDTH; ++file) {
-                    const ChessSquare square{rank, file};
-                    const ChessPiece piece = _board[square];
-                    if (piece.color() == _color_to_move) {
-                        result += material_value(piece.type());
-                    } else {
-                        result -= material_value(piece.type());
-                    }
-                }
-            }
-            return result;
-        }
-
-        double evaluate(int depth) const {
-            if (depth <= 0) {
-                return material_value();
-            } else {
-                double min_score = std::numeric_limits<double>::infinity();
-                for (const ChessMove &move : available_moves()) {
-                    const double score = this->after_move(move).evaluate(depth - 1);
-                    min_score = std::min(min_score, score);
-                }
-                return -min_score;
-            }
-        }
-
     private: // ====================================================================== NAMING MOVES
 
         constexpr bool puts_enemy_in_checkmate(const ChessMove &move) const {
@@ -731,6 +690,16 @@ namespace DZChess {
 
 
 } // namespace DZChess
+
+
+namespace std {
+    template <>
+    struct hash<DZChess::GameState> {
+        size_t operator()(const DZChess::GameState &state) const {
+            return state.board().hash();
+        }
+    }; // struct hash<DZChess::GameState>
+} // namespace std
 
 
 #endif // DZCHESS_GAME_STATE_HPP_INCLUDED

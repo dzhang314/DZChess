@@ -1,5 +1,7 @@
 ﻿#include "GameState.hpp"
+#include "MaterialisticPlayer.hpp"
 
+#include <cstdlib> // for std::exit
 #include <iostream>
 #include <string>
 
@@ -16,29 +18,32 @@ namespace DZChess::ECO {
 } // namespace DZChess::ECO
 
 
-int main() {
-    std::cout << std::endl;
-    DZChess::GameState state = DZChess::ECO::INITIAL_STATE;
-    while (true) {
-        std::cout << state.board() << std::endl;
-        const auto moves = state.available_moves_and_names();
+namespace DZChess {
+
+    void check_for_end_of_game(const GameState &state) {
+        const auto moves = state.available_moves();
         if (moves.size() == 0) {
             if (state.in_check()) {
                 std::cout << "You have been checkmated! Game over." << std::endl;
-                break;
+                std::exit(EXIT_SUCCESS);
             } else {
                 std::cout << "You have been stalemated! Game over." << std::endl;
-                break;
+                std::exit(EXIT_SUCCESS);
             }
-        } else {
-            if (state.in_check()) {
-                std::cout << "You are in check. You have " << moves.size()
-                          << " legal moves:" << std::endl;
-                for (const auto &[move, name] : moves) {
-                    std::cout << "    " << name << std::endl;
-                }
-                std::cout << std::endl;
+        }
+    }
+
+    ChessMove get_move_from_player(const GameState &state) {
+        const auto moves = state.available_moves_and_names();
+        if (state.in_check()) {
+            std::cout << "You are in check. You have " << moves.size()
+                      << " legal moves:" << std::endl;
+            for (const auto &[move, name] : moves) {
+                std::cout << "    " << name << std::endl;
             }
+            std::cout << std::endl;
+        }
+        while (true) {
             std::string selected_move;
             std::cin >> selected_move;
             std::cout << std::endl;
@@ -50,21 +55,38 @@ int main() {
                 std::cout << selected_move << " is not a legal move. "
                           << "The legal moves in this position are:" << std::endl;
                 for (const auto &[move, name] : moves) {
-                    std::cout << "    " << name << " ("
-                              << -state.after_move(move).evaluate(4)
-                              << ")" << std::endl;
+                    std::cout << "    " << name << std::endl;
                 }
                 std::cout << std::endl;
             } else if (num_matches == 1) {
                 for (const auto &[move, name] : moves) {
-                    if (name == selected_move) { state.make_move(move); }
+                    if (name == selected_move) { return move; }
                 }
             } else {
                 std::cout << "ERROR: Move " << selected_move << " is ambiguous."
                           << std::endl;
-                break;
+                std::exit(EXIT_SUCCESS);
             }
         }
     }
+
+}
+
+
+int main() {
+
+    DZChess::GameState state = DZChess::ECO::INITIAL_STATE;
+    DZChess::MaterialisticPlayer player;
+    std::cout << std::endl;
+
+    while (true) {
+        std::cout << state.board() << std::endl;
+        DZChess::check_for_end_of_game(state);
+        state.make_move(DZChess::get_move_from_player(state));
+        std::cout << state.board() << std::endl;
+        DZChess::check_for_end_of_game(state);
+        state.make_move(player.select_move(state));
+    }
+
     return 0;
 }

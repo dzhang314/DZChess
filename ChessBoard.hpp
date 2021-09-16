@@ -3,6 +3,7 @@
 
 #include <array>          // for std::array
 #include <compare>        // for operator<=>
+#include <cstddef>        // for std::size_t
 #include <cstdint>        // for std::int_fast8_t
 #include <ostream>        // for std::ostream
 #include <stdexcept>      // for std::invalid_argument
@@ -201,6 +202,8 @@ namespace DZChess {
                     {{WHITE_ROOK, WHITE_KNIGHT, WHITE_BISHOP, WHITE_QUEEN,
                       WHITE_KING, WHITE_BISHOP, WHITE_KNIGHT, WHITE_ROOK}}}}) {}
 
+        constexpr auto operator<=>(const ChessBoard &) const noexcept = default;
+
         constexpr ChessPiece &operator[](ChessSquare square) {
             if (!(0 <= square.rank() && square.rank() < BOARD_HEIGHT)) {
                 throw std::invalid_argument("rank out of range");
@@ -230,6 +233,17 @@ namespace DZChess {
 
         constexpr void make_move(ChessSquare source, ChessSquare destination) {
             make_move(ChessMove{source, destination});
+        }
+
+        constexpr std::size_t hash() const noexcept {
+            constexpr std::size_t p = 23;
+            std::size_t result = 0;
+            for (coord_t rank = 0; rank < BOARD_HEIGHT; ++rank) {
+                for (coord_t file = 0; file < BOARD_WIDTH; ++file) {
+                    result = p * result + _data[rank][file].hash();
+                }
+            }
+            return result;
         }
 
         friend std::ostream &operator<<(std::ostream &os, const ChessBoard &board) {

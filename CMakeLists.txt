@@ -4,4 +4,4 @@ set(CMAKE_CXX_STANDARD 20)
 
 project("DZChess")
 
-add_executable(DZChess "ChessPiece.hpp" "ChessBoard.hpp" "GameState.hpp" "DZChess.cpp")
+add_executable(DZChess "ChessPiece.hpp" "ChessBoard.hpp" "GameState.hpp" "MaterialisticPlayer.hpp" "DZChess.cpp")
