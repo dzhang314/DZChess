@@ -497,25 +497,7 @@ namespace DZChess {
             const ChessSquare king_location =
                 (_color_to_move == PieceColor::BLACK)
                 ? _black_king_location : _white_king_location;
-            const coord_t up = (_color_to_move == PieceColor::BLACK) ? -1 : +1;
-            return (has_enemy_knight(king_location + ChessDisplacement{+1, +2}) ||
-                    has_enemy_knight(king_location + ChessDisplacement{+1, -2}) ||
-                    has_enemy_knight(king_location + ChessDisplacement{-1, +2}) ||
-                    has_enemy_knight(king_location + ChessDisplacement{-1, -2}) ||
-                    has_enemy_knight(king_location + ChessDisplacement{+2, +1}) ||
-                    has_enemy_knight(king_location + ChessDisplacement{+2, -1}) ||
-                    has_enemy_knight(king_location + ChessDisplacement{-2, +1}) ||
-                    has_enemy_knight(king_location + ChessDisplacement{-2, -1}) ||
-                    has_enemy_pawn(king_location + ChessDisplacement{up, +1}) ||
-                    has_enemy_pawn(king_location + ChessDisplacement{up, -1}) ||
-                    orthogonal_check(king_location, ChessDisplacement{0, +1}) ||
-                    orthogonal_check(king_location, ChessDisplacement{0, -1}) ||
-                    orthogonal_check(king_location, ChessDisplacement{+1, 0}) ||
-                    orthogonal_check(king_location, ChessDisplacement{-1, 0}) ||
-                    diagonal_check(king_location, ChessDisplacement{+1, +1}) ||
-                    diagonal_check(king_location, ChessDisplacement{+1, -1}) ||
-                    diagonal_check(king_location, ChessDisplacement{-1, +1}) ||
-                    diagonal_check(king_location, ChessDisplacement{-1, -1}));
+            return is_attacked(king_location);
         }
 
     private:

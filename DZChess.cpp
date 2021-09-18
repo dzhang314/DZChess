@@ -1,5 +1,5 @@
 ﻿#include "GameState.hpp"
-#include "MaterialisticPlayer.hpp"
+#include "ChessPlayer.hpp"
 
 #include <cstdlib> // for std::exit
 #include <iostream>
@@ -33,39 +33,27 @@ namespace DZChess {
         }
     }
 
-    ChessMove get_move_from_player(const GameState &state) {
-        const auto moves = state.available_moves_and_names();
-        if (state.in_check()) {
-            std::cout << "You are in check. You have " << moves.size()
-                      << " legal moves:" << std::endl;
-            for (const auto &[move, name] : moves) {
-                std::cout << "    " << name << std::endl;
-            }
-            std::cout << std::endl;
-        }
+    PieceColor run_game(ChessPlayer *white_player, ChessPlayer *black_player, GameState state, bool verbose = false) {
+        if (verbose) { std::cout << std::endl; }
         while (true) {
-            std::string selected_move;
-            std::cin >> selected_move;
-            std::cout << std::endl;
-            int num_matches = 0;
-            for (const auto &[move, name] : moves) {
-                if (name == selected_move) { ++num_matches; }
-            }
-            if (num_matches == 0) {
-                std::cout << selected_move << " is not a legal move. "
-                          << "The legal moves in this position are:" << std::endl;
-                for (const auto &[move, name] : moves) {
-                    std::cout << "    " << name << std::endl;
+            if (state.color_to_move() == PieceColor::BLACK) {
+                if (verbose) {
+                    std::cout << "Black to move." << std::endl << std::endl;
+                    std::cout << state.board() << std::endl;
                 }
-                std::cout << std::endl;
-            } else if (num_matches == 1) {
-                for (const auto &[move, name] : moves) {
-                    if (name == selected_move) { return move; }
+                if (state.available_moves().empty()) {
+                    return state.in_check() ? PieceColor::WHITE : PieceColor::NONE;
                 }
+                state.make_move(black_player->select_move(state));
             } else {
-                std::cout << "ERROR: Move " << selected_move << " is ambiguous."
-                          << std::endl;
-                std::exit(EXIT_SUCCESS);
+                if (verbose) {
+                    std::cout << "White to move." << std::endl << std::endl;
+                    std::cout << state.board() << std::endl;
+                }
+                if (state.available_moves().empty()) {
+                    return state.in_check() ? PieceColor::BLACK : PieceColor::NONE;
+                }
+                state.make_move(white_player->select_move(state));
             }
         }
     }
@@ -75,18 +63,25 @@ namespace DZChess {
 
 int main() {
 
-    DZChess::GameState state = DZChess::ECO::INITIAL_STATE;
-    DZChess::MaterialisticPlayer player;
+    DZChess::ChessPlayer *white_player = new DZChess::MaterialisticPlayer{4, true};
+    DZChess::ChessPlayer *black_player = new DZChess::ConsolePlayer{};
     std::cout << std::endl;
-
-    while (true) {
-        std::cout << state.board() << std::endl;
-        DZChess::check_for_end_of_game(state);
-        state.make_move(DZChess::get_move_from_player(state));
-        std::cout << state.board() << std::endl;
-        DZChess::check_for_end_of_game(state);
-        state.make_move(player.select_move(state));
+    int white_wins = 0;
+    int black_wins = 0;
+    int draws = 0;
+    for (int i = 0; i < 100; ++i) {
+        switch (run_game(white_player, black_player, DZChess::ECO::INITIAL_STATE, true)) {
+            case DZChess::PieceColor::WHITE:
+                ++white_wins;
+                break;
+            case DZChess::PieceColor::BLACK:
+                ++black_wins;
+                break;
+            case DZChess::PieceColor::NONE:
+                ++draws;
+                break;
+        }
+        std::cout << white_wins << " : " << draws << " : " << black_wins << std::endl;
     }
-
     return 0;
 }
