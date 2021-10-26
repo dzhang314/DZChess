@@ -89,6 +89,14 @@ public:
         return BitBoard{~data};
     }
 
+    constexpr BitBoard shift_up() const noexcept {
+        return BitBoard{data << 8};
+    }
+
+    constexpr BitBoard shift_down() const noexcept {
+        return BitBoard{data >> 8};
+    }
+
     constexpr int popcount() const noexcept {
         return std::popcount(data);
     }
@@ -135,7 +143,31 @@ public:
         return BitBoard{KNIGHT_MOVE_TABLE[src]} & ~own_pieces;
     }
 
-    template <PieceType TYPE>
+    template <PieceColor COLOR>
+    constexpr BitBoard pawn_moves(std::uint64_t src,
+                                  BitBoard own_pieces) const noexcept {
+        const BitBoard empty = this->operator~();
+        const BitBoard opp_pieces = this->operator&(~own_pieces);
+        if constexpr (COLOR == PieceColor::WHITE) {
+            const BitBoard double_empty = empty & empty.shift_up();
+            const BitBoard moves{WHITE_PAWN_MOVE_TABLE[src]};
+            const BitBoard captures{WHITE_PAWN_CAPTURE_TABLE[src]};
+            const BitBoard double_moves{WHITE_PAWN_DOUBLE_MOVE_TABLE[src]};
+            return ((moves & empty) |
+                    (captures & opp_pieces) |
+                    (double_moves & double_empty));
+        } else if constexpr (COLOR == PieceColor::BLACK) {
+            const BitBoard double_empty = empty & empty.shift_down();
+            const BitBoard moves{BLACK_PAWN_MOVE_TABLE[src]};
+            const BitBoard captures{BLACK_PAWN_CAPTURE_TABLE[src]};
+            const BitBoard double_moves{BLACK_PAWN_DOUBLE_MOVE_TABLE[src]};
+            return ((moves & empty) |
+                    (captures & opp_pieces) |
+                    (double_moves & double_empty));
+        }
+    }
+
+    template <PieceColor COLOR, PieceType TYPE>
     constexpr BitBoard moves(std::uint64_t src,
                              BitBoard own_pieces) const noexcept {
         if constexpr (TYPE == PieceType::KING) {
@@ -149,7 +181,7 @@ public:
         } else if constexpr (TYPE == PieceType::KNIGHT) {
             return knight_moves(src, own_pieces);
         } else if constexpr (TYPE == PieceType::PAWN) {
-            return BitBoard{0};
+            return pawn_moves<COLOR>(src, own_pieces);
         }
     }
 
@@ -157,27 +189,12 @@ public:
 
 
 constexpr std::array<char, 3> square_name(std::uint64_t square) noexcept {
-    return {static_cast<char>('a' + (square % 8)),
-            static_cast<char>('1' + (square / 8)),
-            '\0'};
+    return {
+        static_cast<char>('a' + (square % 8)),
+        static_cast<char>('1' + (square / 8)),
+       '\0'
+    };
 }
-
-
-// class ChessBoard;
-
-
-// template <int DEPTH>
-// struct EvaluationVisitor {
-
-//     int result;
-
-//     using ResultType = int;
-
-//     ResultType get_result() {
-//         return result;
-//     }
-
-// }; // struct EvaluationVisitor
 
 
 constexpr PieceColor other(PieceColor color) noexcept {
@@ -228,10 +245,10 @@ public:
     explicit constexpr ChessBoard() noexcept : ChessBoard(
         UINT64_C(0x0000000000000010), UINT64_C(0x0000000000000008),
         UINT64_C(0x0000000000000081), UINT64_C(0x0000000000000024),
-        UINT64_C(0x0000000000000042), UINT64_C(0x0000000000000000),
+        UINT64_C(0x0000000000000042), UINT64_C(0x000000000000FF00),
         UINT64_C(0x1000000000000000), UINT64_C(0x0800000000000000),
         UINT64_C(0x8100000000000000), UINT64_C(0x2400000000000000),
-        UINT64_C(0x4200000000000000), UINT64_C(0x0000000000000000)
+        UINT64_C(0x4200000000000000), UINT64_C(0x00FF000000000000)
     ) {}
 
     constexpr void clear_square(std::uint64_t square) noexcept {
@@ -334,21 +351,6 @@ public:
         return get_piece<COLOR, TYPE>().popcount();
     }
 
-    constexpr int leaf_evaluation() const noexcept {
-        return (10000 * piece_count<PieceColor::WHITE, PieceType::KING  >()
-                + 900 * piece_count<PieceColor::WHITE, PieceType::QUEEN >()
-                + 500 * piece_count<PieceColor::WHITE, PieceType::ROOK  >()
-                + 300 * piece_count<PieceColor::WHITE, PieceType::BISHOP>()
-                + 300 * piece_count<PieceColor::WHITE, PieceType::KNIGHT>()
-                + 100 * piece_count<PieceColor::WHITE, PieceType::PAWN  >()
-              - 10000 * piece_count<PieceColor::BLACK, PieceType::KING  >()
-                - 900 * piece_count<PieceColor::BLACK, PieceType::QUEEN >()
-                - 500 * piece_count<PieceColor::BLACK, PieceType::ROOK  >()
-                - 300 * piece_count<PieceColor::BLACK, PieceType::BISHOP>()
-                - 300 * piece_count<PieceColor::BLACK, PieceType::KNIGHT>()
-                - 100 * piece_count<PieceColor::BLACK, PieceType::PAWN  >());
-    }
-
     template <template <PieceColor, int> typename Visitor,
               PieceColor COLOR, int DEPTH, PieceType TYPE>
     constexpr void visit_piece_moves(
@@ -356,74 +358,141 @@ public:
     ) const noexcept {
         for (const std::uint64_t src : get_piece<COLOR, TYPE>()) {
             const BitBoard destinations =
-                all_pieces.moves<TYPE>(src, get_pieces<COLOR>());
+                all_pieces.moves<COLOR, TYPE>(src, get_pieces<COLOR>());
             for (const std::uint64_t dst : destinations) {
                 ChessBoard next = *this;
                 next.clear_square(src);
                 next.clear_square(dst);
                 next.add_piece<COLOR, TYPE>(dst);
-                visitor.visit(
-                    next,
-                    next.evaluate<Visitor, other(COLOR), DEPTH - 1>()
+                visitor.template visit<TYPE>(
+                    *this, next, src, dst,
+                    next.visit<Visitor, other(COLOR), DEPTH - 1>()
                 );
-                // std::cout << COLOR_NAME<color> << ' ' << TYPE_NAME<type>
-                //           << " at " << square_name(src).data()
-                //           << " can move to " << square_name(dst).data()
-                //           << std::endl;
             }
         }
     }
 
     template <template <PieceColor, int> typename Visitor,
               PieceColor COLOR, int DEPTH>
-    constexpr Visitor<COLOR, DEPTH>::result_type evaluate() const noexcept {
-        if constexpr (DEPTH == 0) {
-            return leaf_evaluation();
-        } else {
-            Visitor<COLOR, DEPTH> visitor{};
-            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::KING  >(visitor);
-            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::QUEEN >(visitor);
-            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::ROOK  >(visitor);
-            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::BISHOP>(visitor);
-            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::KNIGHT>(visitor);
-            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::PAWN  >(visitor);
-            return visitor.get_result();
+    constexpr void visit_pawn_moves(
+        Visitor<COLOR, DEPTH> &visitor
+    ) const noexcept {
+        for (const std::uint64_t src : get_piece<COLOR, PieceType::PAWN>()) {
+            const BitBoard destinations = all_pieces.moves<
+                COLOR, PieceType::PAWN
+            >(src, get_pieces<COLOR>());
+            if constexpr (COLOR == PieceColor::WHITE) {
+                if ((48 <= src) && (src < 56)) {
+                    for (const std::uint64_t dst : destinations) {
+                        ChessBoard next = *this;
+                        next.clear_square(src);
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::QUEEN>(dst);
+                        visitor.template visit_promotion<PieceType::QUEEN>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::ROOK>(dst);
+                        visitor.template visit_promotion<PieceType::ROOK>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::BISHOP>(dst);
+                        visitor.template visit_promotion<PieceType::BISHOP>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::KNIGHT>(dst);
+                        visitor.template visit_promotion<PieceType::KNIGHT>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                    }
+                } else {
+                    for (const std::uint64_t dst : destinations) {
+                        ChessBoard next = *this;
+                        next.clear_square(src);
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::PAWN>(dst);
+                        visitor.template visit<PieceType::PAWN>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                    }
+                }
+            } else if constexpr (COLOR == PieceColor::BLACK) {
+                if ((8 <= src) && (src < 16)) {
+                    for (const std::uint64_t dst : destinations) {
+                        ChessBoard next = *this;
+                        next.clear_square(src);
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::QUEEN>(dst);
+                        visitor.template visit_promotion<PieceType::QUEEN>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::ROOK>(dst);
+                        visitor.template visit_promotion<PieceType::ROOK>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::BISHOP>(dst);
+                        visitor.template visit_promotion<PieceType::BISHOP>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::KNIGHT>(dst);
+                        visitor.template visit_promotion<PieceType::KNIGHT>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                    }
+                } else {
+                    for (const std::uint64_t dst : destinations) {
+                        ChessBoard next = *this;
+                        next.clear_square(src);
+                        next.clear_square(dst);
+                        next.add_piece<COLOR, PieceType::PAWN>(dst);
+                        visitor.template visit<PieceType::PAWN>(
+                            *this, next, src, dst,
+                            next.visit<Visitor, other(COLOR), DEPTH - 1>()
+                        );
+                    }
+                }
+            }
         }
     }
 
-    // template <template <int> Visitor, int DEPTH,
-    //           PieceColor COLOR, PieceType TYPE>
-    // constexpr void visit_piece_moves(Visitor<DEPTH> &visitor) const noexcept {
-    //     for (const std::uint64_t src : get_piece<color, type>()) {
-    //         const BitBoard destinations =
-    //             all_pieces.moves<type>(src, get_pieces<color>());
-    //         for (const std::uint64_t dst : destinations) {
-    //             ChessBoard next = *this;
-    //             next.clear_square(src);
-    //             next.clear_square(dst);
-    //             next.add_piece<color, type>(dst);
-    //             visitor.visit(next);
-    //             // std::cout << COLOR_NAME<color> << ' ' << TYPE_NAME<type>
-    //             //           << " at " << square_name(src).data()
-    //             //           << " can move to " << square_name(dst).data()
-    //             //           << std::endl;
-    //         }
-    //     }
-    // }
-
-    // template <template <int> Visitor, int DEPTH, PieceColor COLOR>
-    // constexpr Visitor<DEPTH>::return_type visit_all_moves() const noexcept {
-    //     Visitor<DEPTH> visitor{};
-    //     visit_piece_moves<Visitor, DEPTH, COLOR, PieceType::KING  >(visitor);
-    //     visit_piece_moves<Visitor, DEPTH, COLOR, PieceType::QUEEN >(visitor);
-    //     visit_piece_moves<Visitor, DEPTH, COLOR, PieceType::ROOK  >(visitor);
-    //     visit_piece_moves<Visitor, DEPTH, COLOR, PieceType::BISHOP>(visitor);
-    //     visit_piece_moves<Visitor, DEPTH, COLOR, PieceType::KNIGHT>(visitor);
-    //     visit_piece_moves<Visitor, DEPTH, COLOR, PieceType::PAWN  >(visitor);
-    //     return visitor.get_result();
-    // }
+    template <template <PieceColor, int> typename Visitor,
+              PieceColor COLOR, int DEPTH>
+    constexpr Visitor<COLOR, DEPTH>::result_type visit() const noexcept {
+        if constexpr (DEPTH == 0) {
+            return Visitor<COLOR, DEPTH>::visit(*this);
+        } else {
+            Visitor<COLOR, DEPTH> v{};
+            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::KING  >(v);
+            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::QUEEN >(v);
+            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::ROOK  >(v);
+            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::BISHOP>(v);
+            visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::KNIGHT>(v);
+            visit_pawn_moves <Visitor, COLOR, DEPTH                   >(v);
+            return v.get_result();
+        }
+    }
 
 }; // class ChessBoard
+
+
+                // std::cout << COLOR_NAME<color> << ' ' << TYPE_NAME<type>
+                //           << " at " << square_name(src).data()
+                //           << " can move to " << square_name(dst).data()
+                //           << std::endl;
 
 
 template <PieceColor COLOR, int DEPTH>
@@ -433,10 +502,39 @@ struct MaterialisticEvaluationVisitor {
 
     using result_type = int;
 
+    static constexpr int visit(const ChessBoard &b) noexcept {
+        return (10000 * b.piece_count<PieceColor::WHITE, PieceType::KING  >()
+                + 900 * b.piece_count<PieceColor::WHITE, PieceType::QUEEN >()
+                + 500 * b.piece_count<PieceColor::WHITE, PieceType::ROOK  >()
+                + 300 * b.piece_count<PieceColor::WHITE, PieceType::BISHOP>()
+                + 300 * b.piece_count<PieceColor::WHITE, PieceType::KNIGHT>()
+                + 100 * b.piece_count<PieceColor::WHITE, PieceType::PAWN  >()
+              - 10000 * b.piece_count<PieceColor::BLACK, PieceType::KING  >()
+                - 900 * b.piece_count<PieceColor::BLACK, PieceType::QUEEN >()
+                - 500 * b.piece_count<PieceColor::BLACK, PieceType::ROOK  >()
+                - 300 * b.piece_count<PieceColor::BLACK, PieceType::BISHOP>()
+                - 300 * b.piece_count<PieceColor::BLACK, PieceType::KNIGHT>()
+                - 100 * b.piece_count<PieceColor::BLACK, PieceType::PAWN  >());
+    }
+
     explicit constexpr MaterialisticEvaluationVisitor() noexcept
         : accumulator((COLOR == PieceColor::WHITE) ? INT_MIN : INT_MAX) {}
 
-    constexpr void visit(const ChessBoard &, result_type result) noexcept {
+    template <PieceType TYPE>
+    constexpr void visit(const ChessBoard &, const ChessBoard &,
+                         std::uint64_t, std::uint64_t,
+                         result_type result) noexcept {
+        if constexpr (COLOR == PieceColor::WHITE) {
+            accumulator = std::max(accumulator, result);
+        } else if constexpr (COLOR == PieceColor::BLACK) {
+            accumulator = std::min(accumulator, result);
+        }
+    }
+
+    template <PieceType TYPE>
+    constexpr void visit_promotion(const ChessBoard &, const ChessBoard &,
+                                   std::uint64_t, std::uint64_t,
+                                   result_type result) noexcept {
         if constexpr (COLOR == PieceColor::WHITE) {
             accumulator = std::max(accumulator, result);
         } else if constexpr (COLOR == PieceColor::BLACK) {
@@ -453,17 +551,5 @@ struct MaterialisticEvaluationVisitor {
 
 int main() {
     ChessBoard board{};
-    // board.piece_moves<PieceColor::WHITE, PieceType::KING>();
-    // board.piece_moves<PieceColor::WHITE, PieceType::QUEEN>();
-    // board.piece_moves<PieceColor::WHITE, PieceType::ROOK>();
-    // board.piece_moves<PieceColor::WHITE, PieceType::BISHOP>();
-    // board.piece_moves<PieceColor::WHITE, PieceType::KNIGHT>();
-    // board.piece_moves<PieceColor::WHITE, PieceType::PAWN>();
-    // board.piece_moves<PieceColor::BLACK, PieceType::KING>();
-    // board.piece_moves<PieceColor::BLACK, PieceType::QUEEN>();
-    // board.piece_moves<PieceColor::BLACK, PieceType::ROOK>();
-    // board.piece_moves<PieceColor::BLACK, PieceType::BISHOP>();
-    // board.piece_moves<PieceColor::BLACK, PieceType::KNIGHT>();
-    // board.piece_moves<PieceColor::BLACK, PieceType::PAWN>();
-    std::cout << board.evaluate<MaterialisticEvaluationVisitor, PieceColor::WHITE, 1>() << std::endl;
+    std::cout << board.visit<MaterialisticEvaluationVisitor, PieceColor::WHITE, 5>() << std::endl;
 }
