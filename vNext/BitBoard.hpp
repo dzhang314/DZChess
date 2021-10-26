@@ -7,6 +7,8 @@
 #include "ChessPiece.hpp"
 #include "MoveTables.hpp"
 
+namespace DZChess {
+
 
 class BitBoardIterator {
 
@@ -169,5 +171,7 @@ public:
 
 }; // class BitBoard
 
+
+} // namespace DZChess
 
 #endif // DZCHESS_BIT_BOARD_HPP_INCLUDED

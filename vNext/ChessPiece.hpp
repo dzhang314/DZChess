@@ -4,6 +4,8 @@
 #include <array>   // for std::array
 #include <cstdint> // for std::uint64_t
 
+namespace DZChess {
+
 
 enum class PieceColor { WHITE, BLACK };
 enum class PieceType { KING, QUEEN, ROOK, BISHOP, KNIGHT, PAWN };
@@ -42,5 +44,7 @@ constexpr std::array<char, 3> square_name(std::uint64_t square) noexcept {
     };
 }
 
+
+} // namespace DZChess
 
 #endif // DZCHESS_CHESS_PIECE_HPP_INCLUDED

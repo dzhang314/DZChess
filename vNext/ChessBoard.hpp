@@ -6,6 +6,8 @@
 #include "ChessPiece.hpp"
 #include "BitBoard.hpp"
 
+namespace DZChess {
+
 
 class ChessBoard {
 
@@ -289,5 +291,7 @@ public:
 
 }; // class ChessBoard
 
+
+} // namespace DZChess
 
 #endif // DZCHESS_CHESS_BOARD_HPP_INCLUDED

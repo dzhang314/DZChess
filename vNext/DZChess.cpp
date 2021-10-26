@@ -6,10 +6,7 @@
 #include "ChessBoard.hpp"
 
 
-                // std::cout << COLOR_NAME<color> << ' ' << TYPE_NAME<type>
-                //           << " at " << square_name(src).data()
-                //           << " can move to " << square_name(dst).data()
-                //           << std::endl;
+using DZChess::PieceColor, DZChess::PieceType, DZChess::ChessBoard;
 
 
 template <PieceColor COLOR, int DEPTH>
