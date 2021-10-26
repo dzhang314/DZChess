@@ -51,6 +51,10 @@ public:
         return BitBoardIterator{0};
     }
 
+    constexpr bool is_set(std::uint64_t index) const noexcept {
+        return ((data >> index) & 1) != 0;
+    }
+
     constexpr BitBoard operator&(BitBoard rhs) const noexcept {
         return BitBoard{data & rhs.data};
     }

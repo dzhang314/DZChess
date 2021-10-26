@@ -54,6 +54,10 @@ public:
         UINT64_C(0x4200000000000000), UINT64_C(0x00FF000000000000)
     ) {}
 
+    constexpr bool has_piece(std::uint64_t square) const noexcept {
+        return all_pieces.is_set(square);
+    }
+
     constexpr void clear_square(std::uint64_t square) noexcept {
         const BitBoard mask{~(UINT64_C(1) << square)};
         white_king &= mask;
@@ -118,7 +122,9 @@ public:
     template <PieceColor COLOR, PieceType TYPE>
     constexpr void add_piece(std::uint64_t square) noexcept {
         const BitBoard piece{UINT64_C(1) << square};
+        all_pieces |= piece;
         if constexpr (COLOR == PieceColor::WHITE) {
+            white_pieces |= piece;
             if constexpr (TYPE == PieceType::KING) {
                 white_king |= piece;
             } else if constexpr (TYPE == PieceType::QUEEN) {
@@ -133,6 +139,7 @@ public:
                 white_pawn |= piece;
             }
         } else if constexpr (COLOR == PieceColor::BLACK) {
+            black_pieces |= piece;
             if constexpr (TYPE == PieceType::KING) {
                 black_king |= piece;
             } else if constexpr (TYPE == PieceType::QUEEN) {
@@ -287,6 +294,19 @@ public:
             visit_pawn_moves <Visitor, COLOR, DEPTH                   >(v);
             return v.get_result();
         }
+    }
+
+    template <template <PieceColor, int> typename Visitor,
+              PieceColor COLOR, int DEPTH>
+    constexpr Visitor<COLOR, DEPTH>::result_type
+    visit(Visitor<COLOR, DEPTH> &v) const noexcept {
+        visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::KING  >(v);
+        visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::QUEEN >(v);
+        visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::ROOK  >(v);
+        visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::BISHOP>(v);
+        visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::KNIGHT>(v);
+        visit_pawn_moves <Visitor, COLOR, DEPTH                   >(v);
+        return v.get_result();
     }
 
 }; // class ChessBoard

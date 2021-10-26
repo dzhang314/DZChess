@@ -2,8 +2,7 @@
 #include <cstdint>  // for std::uint64_t
 #include <iostream>
 
-#include "ChessPiece.hpp"
-#include "ChessBoard.hpp"
+#include "MoveNaming.hpp"
 
 
 using DZChess::PieceColor, DZChess::PieceType, DZChess::ChessBoard;
@@ -65,5 +64,8 @@ struct MaterialisticEvaluationVisitor {
 
 int main() {
     ChessBoard board{};
-    std::cout << board.visit<MaterialisticEvaluationVisitor, PieceColor::WHITE, 5>() << std::endl;
+
+    for (const auto &[name, next] : available_moves_and_names<PieceColor::WHITE>(board)) {
+        std::cout << name << " : " << next.visit<MaterialisticEvaluationVisitor, PieceColor::BLACK, 6>() << std::endl;
+    }
 }
