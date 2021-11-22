@@ -54,29 +54,6 @@ public:
         UINT64_C(0x4200000000000000), UINT64_C(0x00FF000000000000)
     ) {}
 
-    constexpr bool has_piece(std::uint64_t square) const noexcept {
-        return all_pieces.is_set(square);
-    }
-
-    constexpr void clear_square(std::uint64_t square) noexcept {
-        const BitBoard mask{~(UINT64_C(1) << square)};
-        white_king &= mask;
-        white_queen &= mask;
-        white_rook &= mask;
-        white_bishop &= mask;
-        white_knight &= mask;
-        white_pawn &= mask;
-        black_king &= mask;
-        black_queen &= mask;
-        black_rook &= mask;
-        black_bishop &= mask;
-        black_knight &= mask;
-        black_pawn &= mask;
-        white_pieces &= mask;
-        black_pieces &= mask;
-        all_pieces &= mask;
-    }
-
     template <PieceColor COLOR, PieceType TYPE>
     constexpr BitBoard get_piece() const noexcept {
         if constexpr (COLOR == PieceColor::WHITE) {
@@ -117,6 +94,34 @@ public:
         } else if constexpr (COLOR == PieceColor::BLACK) {
             return black_pieces;
         }
+    }
+
+    constexpr bool is_occupied(std::uint64_t square) const noexcept {
+        return all_pieces.is_set(square);
+    }
+
+    template <PieceColor COLOR, PieceType TYPE>
+    constexpr bool has_piece(std::uint64_t square) const noexcept {
+        return get_piece<COLOR, TYPE>().is_set(square);
+    }
+
+    constexpr void clear_square(std::uint64_t square) noexcept {
+        const BitBoard mask{~(UINT64_C(1) << square)};
+        white_king &= mask;
+        white_queen &= mask;
+        white_rook &= mask;
+        white_bishop &= mask;
+        white_knight &= mask;
+        white_pawn &= mask;
+        black_king &= mask;
+        black_queen &= mask;
+        black_rook &= mask;
+        black_bishop &= mask;
+        black_knight &= mask;
+        black_pawn &= mask;
+        white_pieces &= mask;
+        black_pieces &= mask;
+        all_pieces &= mask;
     }
 
     template <PieceColor COLOR, PieceType TYPE>

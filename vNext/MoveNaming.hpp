@@ -71,13 +71,13 @@ available_moves_and_names(const ChessBoard &board) {
 
     std::vector<std::pair<std::string, ChessBoard>> result{};
     for (const auto &[move, next] : moves) {
-        std::ostringstream name{};
 
-        const bool is_capture = board.has_piece(move.dst);
+        const bool is_capture = board.is_occupied(move.dst);
         const std::uint64_t src_rank = move.src / 8;
         const std::uint64_t src_file = move.src % 8;
         const std::uint64_t dst_rank = move.dst / 8;
         const std::uint64_t dst_file = move.dst % 8;
+        std::ostringstream name{};
 
         switch (move.src_type) {
             case PieceType::KING  : { name << 'K'; break; }
@@ -93,34 +93,34 @@ available_moves_and_names(const ChessBoard &board) {
             }
         }
 
-        bool ambiguous_rank = false;
-        bool ambiguous_file = false;
-        bool ambiguous_diag = false;
-
-        for (const auto &[other, onext] : moves) {
-            if ((move.src_type == other.src_type) && (move.dst == other.dst)) {
-                const std::uint64_t osrc_rank = other.src / 8;
-                const std::uint64_t osrc_file = other.src % 8;
-                if ((osrc_rank == src_rank) && (osrc_file != src_file)) {
-                    ambiguous_rank = true;
-                }
-                if ((osrc_rank != src_rank) && (osrc_file == src_file)) {
-                    ambiguous_file = true;
-                }
-                if ((osrc_rank != src_rank) && (osrc_file != src_file)) {
-                    ambiguous_diag = true;
+        if (move.src_type != PieceType::PAWN) {
+            bool ambiguous_rank = false;
+            bool ambiguous_file = false;
+            bool ambiguous_diag = false;
+            for (const auto &[other, onext] : moves) {
+                if ((move.src_type == other.src_type) && (move.dst == other.dst)) {
+                    const std::uint64_t osrc_rank = other.src / 8;
+                    const std::uint64_t osrc_file = other.src % 8;
+                    if ((osrc_rank == src_rank) && (osrc_file != src_file)) {
+                        ambiguous_rank = true;
+                    }
+                    if ((osrc_rank != src_rank) && (osrc_file == src_file)) {
+                        ambiguous_file = true;
+                    }
+                    if ((osrc_rank != src_rank) && (osrc_file != src_file)) {
+                        ambiguous_diag = true;
+                    }
                 }
             }
-        }
-
-        if (ambiguous_rank || ambiguous_file || ambiguous_diag) {
-            if (!ambiguous_file) {
-                name << static_cast<char>('a' + src_file);
-            } else if (!ambiguous_rank) {
-                name << static_cast<char>('1' + src_rank);
-            } else {
-                name << static_cast<char>('a' + src_file);
-                name << static_cast<char>('1' + src_rank);
+            if (ambiguous_rank || ambiguous_file || ambiguous_diag) {
+                if (!ambiguous_file) {
+                    name << static_cast<char>('a' + src_file);
+                } else if (!ambiguous_rank) {
+                    name << static_cast<char>('1' + src_rank);
+                } else {
+                    name << static_cast<char>('a' + src_file);
+                    name << static_cast<char>('1' + src_rank);
+                }
             }
         }
 
@@ -136,7 +136,7 @@ available_moves_and_names(const ChessBoard &board) {
                 case PieceType::ROOK  : { name << 'R'; break; }
                 case PieceType::BISHOP: { name << 'B'; break; }
                 case PieceType::KNIGHT: { name << 'N'; break; }
-                case PieceType::PAWN  : {              break; }
+                case PieceType::PAWN  : { name << 'P'; break; }
             }
         }
 
