@@ -286,7 +286,8 @@ public:
 
     template <template <PieceColor, int> typename Visitor,
               PieceColor COLOR, int DEPTH>
-    constexpr Visitor<COLOR, DEPTH>::result_type visit() const noexcept {
+    constexpr typename Visitor<COLOR, DEPTH>::result_type
+    visit() const noexcept {
         if constexpr (DEPTH == 0) {
             return Visitor<COLOR, DEPTH>::visit(*this);
         } else {
@@ -303,7 +304,7 @@ public:
 
     template <template <PieceColor, int> typename Visitor,
               PieceColor COLOR, int DEPTH>
-    constexpr Visitor<COLOR, DEPTH>::result_type
+    constexpr typename Visitor<COLOR, DEPTH>::result_type
     visit(Visitor<COLOR, DEPTH> &v) const noexcept {
         visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::KING  >(v);
         visit_piece_moves<Visitor, COLOR, DEPTH, PieceType::QUEEN >(v);
